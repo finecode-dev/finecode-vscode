@@ -1,0 +1,213 @@
+{
+  "name": "finecode-vscode",
+  "displayName": "FineCode",
+  "description": "",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "version": "1.0.0",
+  "preview": true,
+  "serverInfo": {
+    "name": "FineCode",
+    "module": "finecode"
+  },
+  "publisher": "aksem",
+  "license": "MIT",
+  "homepage": "https://github.com/Aksem/FineCode-VSCode",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aksem/FineCode-VSCode.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Aksem/FineCode-VSCode/issues"
+  },
+  "galleryBanner": {
+    "color": "#1e415e",
+    "theme": "dark"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Formatters"
+  ],
+  "activationEvents": [
+    "onLanguage:python",
+    "workspaceContains:*.py"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "configuration": {
+      "properties": {
+        "finecode.args": {
+          "default": [],
+          "description": "Arguments passed in. Each argument is a separate item in the array.",
+          "items": {
+            "type": "string"
+          },
+          "scope": "resource",
+          "type": "array"
+        },
+        "finecode.path": {
+          "default": [],
+          "description": "When set to a path to finecode binary, extension will use that. NOTE: Using this option may slowdown server response time.",
+          "scope": "resource",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "finecode.importStrategy": {
+          "default": "fromEnvironment",
+          "description": "Defines where `finecode` is imported from. This setting may be ignored if `finecode.path` is set.",
+          "enum": [
+            "useBundled",
+            "fromEnvironment"
+          ],
+          "enumDescriptions": [
+            "Always use the bundled version of `finecode`.",
+            "Use `finecode` from environment, fallback to bundled version only if `finecode` not available in the environment."
+          ],
+          "scope": "window",
+          "type": "string"
+        },
+        "finecode.interpreter": {
+          "default": [],
+          "description": "When set to a path to python executable, extension will use that to launch the server and any subprocess.",
+          "scope": "window",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "finecode.showNotifications": {
+          "default": "off",
+          "description": "Controls when notifications are shown by this extension.",
+          "enum": [
+            "off",
+            "onError",
+            "onWarning",
+            "always"
+          ],
+          "enumDescriptions": [
+            "All notifications are turned off, any errors or warning are still available in the logs.",
+            "Notifications are shown only in the case of an error.",
+            "Notifications are shown for errors and warnings.",
+            "Notifications are show for anything that the server chooses to show."
+          ],
+          "scope": "machine",
+          "type": "string"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "finecode.refreshActions",
+        "title": "Refresh",
+        "icon": {
+          "light": "dist/assets/icons/light/refresh.svg",
+          "dark": "dist/assets/icons/dark/refresh.svg"
+        }
+      },
+      {
+        "command": "finecode.refreshViews",
+        "title": "Refresh",
+        "icon": {
+          "light": "dist/assets/icons/light/refresh.svg",
+          "dark": "dist/assets/icons/dark/refresh.svg"
+        }
+      },
+      {
+        "command": "finecode.runActionOnProject",
+        "title": "Run on project",
+        "icon": {
+          "light": "dist/assets/icons/light/run-all.svg",
+          "dark": "dist/assets/icons/dark/run-all.svg"
+        }
+      },
+      {
+        "command": "finecode.runActionOnFile",
+        "title": "Run on current file",
+        "icon": {
+          "light": "dist/assets/icons/light/run.svg",
+          "dark": "dist/assets/icons/dark/run.svg"
+        }
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "fine-code",
+          "title": "Fine Code",
+          "icon": "dist/assets/activity_icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "fine-code": [
+        {
+          "id": "fineCodeActions",
+          "name": "Actions",
+          "icon": "dist/assets/activity_icon.svg",
+          "contextualTitle": "Fine Code Actions"
+        }
+      ]
+    },
+    "menus": {
+      "view/item/context": [
+        {
+          "command": "finecode.runActionOnProject",
+          "when": "view == fineCodeActions && viewItem == action",
+          "group": "inline"
+        },
+        {
+          "command": "finecode.runActionOnFile",
+          "when": "view == fineCodeActions && viewItem == action",
+          "group": "inline@2"
+        }
+      ]
+    },
+    "taskDefinitions": [
+      {
+        "type": "finecode",
+        "properties": {
+          "task": {
+            "type": "string",
+            "description": "The FineCode task"
+          }
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "npm run check-types && npm run lint && node esbuild.js",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc-client": "tsc --noEmit --watch --project client/tsconfig.json",
+    "watch:tsc-server": "tsc --noEmit --watch --project server/tsconfig.json",
+    "package": "npm run check-types && npm run lint && node esbuild.js --production",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "check-types": "tsc --noEmit -p client && tsc --noEmit -p server",
+    "lint": "eslint client server --ext ts",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.6",
+    "@types/node": "18.x",
+    "@types/vscode": "^1.90.0",
+    "@typescript-eslint/eslint-plugin": "^7.11.0",
+    "@typescript-eslint/parser": "^7.11.0",
+    "@vscode/test-cli": "^0.0.9",
+    "@vscode/test-electron": "^2.4.0",
+    "esbuild": "^0.21.4",
+    "esbuild-plugin-copy": "^2.1.1",
+    "eslint": "^8.57.0",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  }
+}

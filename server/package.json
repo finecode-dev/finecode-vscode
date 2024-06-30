@@ -1,0 +1,15 @@
+{
+	"name": "finecode-lsp-server",
+	"description": "",
+	"version": "1.0.0",
+	"author": "aksem",
+	"license": "MIT",
+	"engines": {
+		"node": "*"
+	},
+	"dependencies": {
+		"modapp-js": "^0.0.5",
+		"vscode-languageserver": "^9.0.1"
+	},
+	"scripts": {}
+}
