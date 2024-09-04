@@ -3,6 +3,8 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import {
+    ExecuteCommandParams,
+    ExecuteCommandRequest,
     LanguageClient,
     LanguageClientOptions,
     ServerOptions,
@@ -15,7 +17,7 @@ let fineCodeTaskProvider: vscode.Disposable | undefined;
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
     // Use the console to output diagnostic information (console.log) and errors (console.error)
     // This line of code will only be executed once when your extension is activated
     console.log(
@@ -57,7 +59,9 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 
 	// Start the client. This will also launch the server
-	lsClient.start();
+    // waiting on start server is required, otherwise we will get empty response on first request
+    // like action list
+	await lsClient.start();
 
     // tree data provider
     const rootPath =
@@ -70,6 +74,22 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("finecode.refreshActions", () =>
         actionsProvider.refresh()
     );
+
+    vscode.commands.registerCommand("finecode.runActionOnProject", (args) => {
+        const executeCommandParams: ExecuteCommandParams = {
+            command: 'finecode.runActionOnProject',
+            arguments: [args.projectPath]
+        };
+        lsClient?.sendRequest(ExecuteCommandRequest.type, executeCommandParams);
+    });
+
+    vscode.commands.registerCommand("finecode.runActionOnFile", (args) => {
+        const executeCommandParams: ExecuteCommandParams = {
+            command: 'finecode.runActionOnFile',
+            arguments: [args.projectPath, vscode.window.activeTextEditor?.document.uri.path]
+        };
+        lsClient?.sendRequest(ExecuteCommandRequest.type, executeCommandParams);
+    });
 
     // task provider:
     // docs: https://code.visualstudio.com/api/extension-guides/task-provider

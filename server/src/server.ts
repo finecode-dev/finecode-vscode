@@ -11,6 +11,7 @@ import {
     TextDocumentPositionParams,
     TextDocumentSyncKind,
     InitializeResult,
+    ExecuteCommandParams,
     // DocumentDiagnosticReportKind,
     // type DocumentDiagnosticReport,
 } from "vscode-languageserver/node";
@@ -41,15 +42,16 @@ const waitForConnection = (): Promise<null> => {
         let retries = 0;
         const checkConnection = () => {
             if (!workspaceManagerAddress) {
-                if (retries === 2000) {
+                if (retries === 300) {
                     reject();
                 }
-                setTimeout(checkConnection, 10);
+                setTimeout(checkConnection, 100);
                 retries++;
             } else {
                 resolve(null);
             }
         };
+        checkConnection();
     });
 };
 
@@ -63,6 +65,37 @@ const readFinecodeCommand = (filepath: string): string => {
     return '';
 };
 
+const checkLogForServerStart = (logLine: string): void => {
+    // NOTE: subprocesses can print the same start logs as the main process, check logs only until
+    // main process starts
+    if (logLine.includes('Start web socketify server:')) {
+        const _workspaceManagerAddress = 'http://' + logLine.split('server: ')[1].split('\n')[0];
+        console.log('workspace manager address: ', _workspaceManagerAddress);
+        workspaceManagerClient.configure({ url: _workspaceManagerAddress as string });
+        connection.workspace.getWorkspaceFolders().then((dirs) => {
+            const addRequests = dirs?.map((dirPath) => {
+                const addWorkspaceDirPayload = { dirPath: dirPath.uri.replace('file://', '') };
+                console.log('add workspace dir', addWorkspaceDirPayload);
+                try {
+                    return workspaceManagerClient.addWorkspaceDir(addWorkspaceDirPayload);
+                } catch (error) {
+                    console.error('---->', error);
+                    return error;
+                }
+            });
+            if (addRequests) {
+                Promise.all(addRequests).then(() => {
+                    // address is used as flag of started workspace manager, set it after adding
+                    // all workspace dirs
+                    workspaceManagerAddress = _workspaceManagerAddress;
+                    console.log('dirs successfully registered');
+                });
+            }
+            return;
+        });
+    }
+};
+
 const initWorkspaceManager = async (): Promise<undefined> => {
     let wsDir: string | undefined = undefined;
     let finecodeCmd: string | undefined = undefined;
@@ -74,7 +107,6 @@ const initWorkspaceManager = async (): Promise<undefined> => {
     for (const dir of dirs) {
         const dirPath = dir.uri.replace('file://', '');
         const finecodeShPath = dirPath + '/finecode.sh';
-        console.log('check ', finecodeShPath);
         if (fs.existsSync(finecodeShPath)) {
             finecodeCmd = readFinecodeCommand(finecodeShPath);
             if (finecodeCmd !== '') {
@@ -93,28 +125,16 @@ const initWorkspaceManager = async (): Promise<undefined> => {
         console.log('start workspace manager');
         // TODO: handle error of start?
         workspaceManagerProcess.stdout.on('data', (data) => {
-            console.log(data.toString());
+            const dataString = data.toString();
+            console.log(dataString);
+            if (!workspaceManagerAddress) {
+                checkLogForServerStart(dataString);
+            }
         });
         workspaceManagerProcess.stderr.on('data', (data) => {
             const dataString = data.toString();
-            if (dataString.includes('Start web socketify server:')) {
-                const _workspaceManagerAddress = 'http://' + dataString.split(': ')[1];
-                console.log('workspace manager address: ', workspaceManagerAddress);
-                workspaceManagerClient.configure({ url: _workspaceManagerAddress as string });
-                connection.workspace.getWorkspaceFolders().then((dirs) => {
-                    const addRequests = dirs?.map((dirPath) => {
-                        console.log('register workspace dir', dirPath);
-                        return workspaceManagerClient.addWorkspaceDir({ dir_path: dirPath.uri.replace('file://', '') });
-                    });
-                    if (addRequests) {
-                        Promise.all(addRequests).then(() => {
-                            // address is used as flag of started workspace manager, set it after adding
-                            // all workspace dirs
-                            workspaceManagerAddress = _workspaceManagerAddress;
-                        });
-                    }
-                    return;
-                });
+            if (!workspaceManagerAddress) {
+                checkLogForServerStart(dataString);
             }
             console.log('E', dataString);
         });
@@ -219,20 +239,20 @@ connection.onDidChangeConfiguration((change) => {
     connection.languages.diagnostics.refresh();
 });
 
-function getDocumentSettings(resource: string): Thenable<ExampleSettings> {
-    if (!hasConfigurationCapability) {
-        return Promise.resolve(globalSettings);
-    }
-    let result = documentSettings.get(resource);
-    if (!result) {
-        result = connection.workspace.getConfiguration({
-            scopeUri: resource,
-            section: "languageServerExample",
-        });
-        documentSettings.set(resource, result);
-    }
-    return result;
-}
+// function getDocumentSettings(resource: string): Thenable<ExampleSettings> {
+//     if (!hasConfigurationCapability) {
+//         return Promise.resolve(globalSettings);
+//     }
+//     let result = documentSettings.get(resource);
+//     if (!result) {
+//         result = connection.workspace.getConfiguration({
+//             scopeUri: resource,
+//             section: "languageServerExample",
+//         });
+//         documentSettings.set(resource, result);
+//     }
+//     return result;
+// }
 
 // Only keep settings for open documents
 // documents.onDidClose((e) => {
@@ -358,22 +378,38 @@ connection.onDocumentFormatting((params) => {
 
 connection.onRequest(FinecodeGetActionsRequestType, async (params) => {
     if (!finecodeFound) {
+        console.log('3 not found');
         return {};
     }
     await waitForConnection();
-    const actions = await workspaceManagerClient.getActionList();
-    console.log('get actions');
-    return actions; // { rootAction: '', actionsByPath: {} };
+    console.log('->', params);
+    try {
+        const actions = await workspaceManagerClient.getActionList(params);
+        console.log('got actions', actions);
+        return actions;
+    } catch (error) {
+        console.error(error);
+        throw error;
+    }
 });
 
-connection.onExecuteCommand(async (params) => {
+connection.onExecuteCommand(async (params: ExecuteCommandParams) => {
     if (!finecodeFound) {
         return;
     }
-    if (params.command === '') {
-        await workspaceManagerClient.runAction(); // TODO
+    if (params.command === 'finecode.runActionOnFile' || params.command === 'finecode.runActionOnProject') {
+        if (params.arguments === undefined) {
+            console.error("Unexpected: no arguments in command");
+            return;
+        }
+        const actionNodeId = params.arguments[0];
+        let applyOn = '';
+        if (params.command === 'finecode.runActionOnFile') {
+            applyOn = params.arguments[1];
+        }
+        await workspaceManagerClient.runAction({ actionNodeId, applyOn });
     }
-    console.log('execute command', params.command);
+    console.log('execute command', params.command, params.arguments);
 });
 
 // Make the text document manager listen on the connection

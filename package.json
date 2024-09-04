@@ -153,6 +153,18 @@
       ]
     },
     "menus": {
+      "view/title": [
+        {
+          "command": "finecode.refreshActions",
+          "when": "view == fineCodeActions",
+          "group": "navigation"
+        },
+        {
+          "command": "finecode.refreshViews",
+          "when": "view == fineCodeViews",
+          "group": "navigation"
+        }
+      ],
       "view/item/context": [
         {
           "command": "finecode.runActionOnProject",
@@ -191,7 +203,8 @@
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "check-types": "tsc --noEmit -p client && tsc --noEmit -p server",
     "lint": "eslint client server --ext ts",
-    "test": "vscode-test"
+    "test": "vscode-test",
+    "vsce-package": "vsce package -o finecode.vsix"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.6",
@@ -205,7 +218,8 @@
     "esbuild-plugin-copy": "^2.1.1",
     "eslint": "^8.57.0",
     "npm-run-all": "^4.1.5",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "vsce": "^2.15.0"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"

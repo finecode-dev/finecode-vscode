@@ -1,24 +1,30 @@
 import { RequestType } from 'vscode-jsonrpc/node';
 
 export type FinecodeAddWorkspaceDirRequest = {
-  dir_path: string;
+  dirPath: string;
 };
 export type FinecodeAddWorkspaceDirResponse = {};
 
 export type FinecodeGetActionsRequest = {
-  // someArg: string;
+  parentNodeId: string
 };
 
-export type NormalizedAction = {
+export enum NodeType {
+  DIRECTORY = 0,
+  PACKAGE = 1,
+  ACTION = 2,
+  PRESET = 3,
+};
+
+export type ActionTreeNode = {
+  nodeId: string;
   name: string;
-  projectPath: string;
-  subactions: string[];
-  isPackage: boolean;
+  nodeType: NodeType;
+  subnodes: ActionTreeNode[];
 };
 
 export type FinecodeGetActionsResponse = {
-  rootAction: string;
-  actionsByPath: Record<string, NormalizedAction>;
+  nodes: ActionTreeNode[];
 };
 
 export const FinecodeGetActionsRequestType = new RequestType<
@@ -28,3 +34,11 @@ export const FinecodeGetActionsRequestType = new RequestType<
   FinecodeGetActionsResponse,
   void
 >('finecode/getActions');
+
+
+export type RunActionRequest = {
+  actionNodeId: string;
+  applyOn: string;
+};
+
+export type RunActionResponse = {};

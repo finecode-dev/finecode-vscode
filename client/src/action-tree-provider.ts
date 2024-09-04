@@ -2,30 +2,42 @@ import * as vscode from "vscode";
 import { getLSClient } from "./extension";
 import path from "path";
 
-interface RawAction {
-    name: string;
-    projectPath: string;
-    subactions: string[];
-    isPackage: boolean;
-}
 
-interface GetActionsResponse {
-    rootAction: string;
-    actionsByPath: Record<string, RawAction>;
-}
+enum NodeType {
+    DIRECTORY = 0,
+    PACKAGE = 1,
+    ACTION = 2,
+    PRESET = 3,
+};
+
+type ActionTreeNode = {
+    nodeId: string;
+    name: string;
+    nodeType: NodeType;
+    subnodes: ActionTreeNode[];
+};
+
+type FinecodeGetActionsResponse = {
+    nodes: ActionTreeNode[];
+};
+
+const actionNodeToAction = (node: ActionTreeNode): Action => {
+    const collapsible = node.nodeType !== NodeType.ACTION;
+    return new Action(node.name, collapsible ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.None, node.nodeId, node.nodeType);
+};
 
 export class FineCodeActionsProvider
-    implements vscode.TreeDataProvider<Action>
-{
+    implements vscode.TreeDataProvider<Action> {
     private readonly _changeTreeData = new vscode.EventEmitter<
         Action | void | undefined | null
     >();
     public readonly onDidChangeTreeData = this._changeTreeData.event;
     private refreshing = false;
-    private loaded = false;
-    private actions: GetActionsResponse | undefined = undefined;
+    // private loaded = false;
+    private actions: FinecodeGetActionsResponse | undefined = undefined;
+    private actionById: Record<string, ActionTreeNode> = {};
 
-    constructor(private workspaceRoot: string) {}
+    constructor(private workspaceRoot: string) { }
 
     public async refresh() {
         console.log("Refresh actions tree items");
@@ -33,8 +45,9 @@ export class FineCodeActionsProvider
             return;
         }
         this.refreshing = true;
-        this.loaded = false;
+        // this.loaded = false;
         this.actions = undefined;
+
         // getChildren method makes request each time, so items will be updated
         // automatically
         this._changeTreeData.fire();
@@ -55,113 +68,55 @@ export class FineCodeActionsProvider
             return Promise.resolve([]);
         }
 
-        return new Promise((resolve, reject) => {
-            this.getActions()
-                .then((getActionsResponse) => {
-                    if (!element) {
-                        const rootAction =
-                            getActionsResponse.actionsByPath[
-                                getActionsResponse.rootAction
-                            ];
-                        if (!rootAction) {
-                            if (rootAction === "") {
-                                resolve([]);
-                            } else {
-                                console.log(getActionsResponse.actionsByPath);
-                                reject(
-                                    new Error(
-                                        `No action info ${getActionsResponse.rootAction}`
-                                    )
-                                );
-                            }
-                        } else {
-                            resolve([
-                                new Action(
-                                    rootAction.name,
-                                    vscode.TreeItemCollapsibleState.Expanded,
-                                    rootAction ? rootAction.projectPath : "",
-                                    rootAction ? rootAction.isPackage : false
-                                ),
-                            ]);
-                        }
-                    } else {
-                        let actionPath = `${element.projectPath}`;
-                        if (!element.isPackage) {
-                            actionPath += `::${element.label}`;
-                        }
-                        const actionInfo =
-                            getActionsResponse.actionsByPath[actionPath];
-                        if (!actionInfo) {
-                            console.log(
-                                getActionsResponse.actionsByPath,
-                                element
-                            );
-                            reject(
-                                new Error(`Element not found: ${actionPath}`)
-                            );
-                        } else {
-                            console.log(
-                                "info",
-                                actionInfo,
-                                actionInfo.subactions
-                            );
-                            const result = actionInfo.subactions.map(
-                                (actionName) => {
-                                    const subactionInfo =
-                                        getActionsResponse.actionsByPath[
-                                            actionName
-                                        ];
-                                    if (!subactionInfo) {
-                                        console.log(
-                                            `Subaction info not found for ${actionName}`
-                                        );
-                                        return new Action(
-                                            actionName + "<- error",
-                                            vscode.TreeItemCollapsibleState.None,
-                                            "",
-                                            false
-                                        );
-                                    }
-                                    console.log(
-                                        "subaction info",
-                                        subactionInfo
-                                    );
-                                    return new Action(
-                                        subactionInfo.name,
-                                        subactionInfo.isPackage ||
-                                        subactionInfo.subactions.length > 0
-                                            ? vscode.TreeItemCollapsibleState
-                                                  .Collapsed
-                                            : vscode.TreeItemCollapsibleState
-                                                  .None,
-                                        subactionInfo
-                                            ? subactionInfo.projectPath
-                                            : "",
-                                        subactionInfo.isPackage
-                                    );
-                                }
-                            );
-                            console.log("res", result);
-                            resolve(result);
-                        }
-                    }
-                })
-                .catch((error) => {
-                    reject(error);
-                });
-        });
+        const parentNodeId = element?.projectPath || "";
+        // TODO: correctly recognized whether children are already loaded
+        console.log(parentNodeId in this.actionById, this.actionById[parentNodeId], this.actionById, parentNodeId);
+        if (parentNodeId in this.actionById) {
+            return Promise.resolve(this.actionById[parentNodeId].subnodes.map(actionNodeToAction));
+        } else {
+            return new Promise((resolve, reject) => {
+                this.getActions(element?.projectPath || "")
+                    .then((getActionsResponse) => {
+                        const actions = getActionsResponse.nodes.map((node) => {
+                            return actionNodeToAction(node);
+                        });
+                        resolve(actions);
+                    })
+                    .catch((error) => {
+                        reject(error);
+                    });
+            });
+        }
     }
 
-    private loadActions(): Promise<void> {
+    private loadActions(parentNodeId: string): Promise<void> {
         return new Promise((resolve, reject) => {
+            console.log(1);
             getLSClient().then((lsClient) => {
+                console.log('1->', lsClient);
                 lsClient
                     .sendRequest("finecode/getActions", {
-                        workspaceRoot: this.workspaceRoot,
+                        // workspaceRoot: this.workspaceRoot,
+                        parentNodeId
                     })
                     .then((response) => {
-                        this.actions = <GetActionsResponse>response;
-                        this.loaded = true;
+                        console.log('resp', response);
+                        // TODO: investigate why this occurs: we get empty object at start
+                        if (Object.keys(<FinecodeGetActionsResponse>response).length > 0) {
+                            this.actions = <FinecodeGetActionsResponse>response;
+                            // this.loaded = true;
+
+                            const saveActionsById = (actions: ActionTreeNode[]): void => {
+                                for (const action of actions) {
+                                    this.actionById[action.nodeId] = action;
+                                    saveActionsById(action.subnodes);
+                                }
+                            };
+                            saveActionsById(this.actions.nodes);
+                        } else {
+                            this.actions = { nodes: [] };
+                            // this.loaded = false;
+                        }
                         resolve();
                     })
                     .catch((error) => reject(error));
@@ -169,15 +124,15 @@ export class FineCodeActionsProvider
         });
     }
 
-    private getActions(): Promise<GetActionsResponse> {
+    private getActions(parentNodeId: string): Promise<FinecodeGetActionsResponse> {
         return new Promise((resolve, reject) => {
-            if (!this.loaded) {
-                this.loadActions()
-                    .then(() => resolve(<GetActionsResponse>this.actions))
-                    .catch((error) => reject(error));
-            } else {
-                resolve(<GetActionsResponse>this.actions);
-            }
+            // if (!this.loaded) {
+            this.loadActions(parentNodeId)
+                .then(() => resolve(<FinecodeGetActionsResponse>this.actions))
+                .catch((error) => reject(error));
+            // } else {
+            //     resolve(<FinecodeGetActionsResponse>this.actions);
+            // }
         });
     }
 }
@@ -187,15 +142,11 @@ class Action extends vscode.TreeItem {
         public readonly label: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
         public readonly projectPath: string,
-        public readonly isPackage: boolean
+        public readonly actionType: NodeType
     ) {
         super(label, collapsibleState);
         this.projectPath = projectPath;
-        this.isPackage = isPackage;
-    }
-
-    get currentFile(): string {
-        return vscode.window.activeTextEditor?.document.uri.path || "";
+        this.actionType = actionType;
     }
 
     toJSON() {
@@ -203,7 +154,6 @@ class Action extends vscode.TreeItem {
             label: this.label,
             collapsibleState: this.collapsibleState,
             projectPath: this.projectPath,
-            currentFile: this.currentFile,
         };
     }
 
@@ -214,7 +164,7 @@ class Action extends vscode.TreeItem {
             "assets",
             "icons",
             "light",
-            this.isPackage ? "package.svg" : "symbol-event.svg"
+            (this.actionType === NodeType.PACKAGE) ? "package.svg" : "symbol-event.svg"
         ),
         dark: path.join(
             __filename,
@@ -222,9 +172,9 @@ class Action extends vscode.TreeItem {
             "assets",
             "icons",
             "dark",
-            this.isPackage ? "package.svg" : "symbol-event.svg"
+            (this.actionType === NodeType.PACKAGE) ? "package.svg" : "symbol-event.svg"
         ),
     };
 
-    contextValue = this.isPackage ? "package" : "action";
+    contextValue = (this.actionType === NodeType.PACKAGE) ? "package" : "action";
 }
