@@ -38,47 +38,6 @@
   "contributes": {
     "configuration": {
       "properties": {
-        "finecode.args": {
-          "default": [],
-          "description": "Arguments passed in. Each argument is a separate item in the array.",
-          "items": {
-            "type": "string"
-          },
-          "scope": "resource",
-          "type": "array"
-        },
-        "finecode.path": {
-          "default": [],
-          "description": "When set to a path to finecode binary, extension will use that. NOTE: Using this option may slowdown server response time.",
-          "scope": "resource",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "finecode.importStrategy": {
-          "default": "fromEnvironment",
-          "description": "Defines where `finecode` is imported from. This setting may be ignored if `finecode.path` is set.",
-          "enum": [
-            "useBundled",
-            "fromEnvironment"
-          ],
-          "enumDescriptions": [
-            "Always use the bundled version of `finecode`.",
-            "Use `finecode` from environment, fallback to bundled version only if `finecode` not available in the environment."
-          ],
-          "scope": "window",
-          "type": "string"
-        },
-        "finecode.interpreter": {
-          "default": [],
-          "description": "When set to a path to python executable, extension will use that to launch the server and any subprocess.",
-          "scope": "window",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
         "finecode.showNotifications": {
           "default": "off",
           "description": "Controls when notifications are shown by this extension.",

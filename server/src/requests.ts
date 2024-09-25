@@ -39,6 +39,7 @@ export const FinecodeGetActionsRequestType = new RequestType<
 export type RunActionRequest = {
   actionNodeId: string;
   applyOn: string;
+  applyOnText: string;
 };
 
 export type RunActionResponse = {};

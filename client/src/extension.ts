@@ -51,22 +51,22 @@ export async function activate(context: vscode.ExtensionContext) {
     };
 
     // Create the language client and start the client.
-	lsClient = new LanguageClient(
-		'finecodeServer',
-		'Finecode LSP Server',
-		serverOptions,
-		clientOptions
-	);
+    lsClient = new LanguageClient(
+        'finecodeServer',
+        'Finecode LSP Server',
+        serverOptions,
+        clientOptions
+    );
 
-	// Start the client. This will also launch the server
+    // Start the client. This will also launch the server
     // waiting on start server is required, otherwise we will get empty response on first request
     // like action list
-	await lsClient.start();
+    await lsClient.start();
 
     // tree data provider
     const rootPath =
         vscode.workspace.workspaceFolders &&
-        vscode.workspace.workspaceFolders.length > 0
+            vscode.workspace.workspaceFolders.length > 0
             ? vscode.workspace.workspaceFolders[0].uri.fsPath
             : ""; // : undefined; // TODO
     const actionsProvider = new FineCodeActionsProvider(rootPath);
@@ -83,34 +83,49 @@ export async function activate(context: vscode.ExtensionContext) {
         lsClient?.sendRequest(ExecuteCommandRequest.type, executeCommandParams);
     });
 
-    vscode.commands.registerCommand("finecode.runActionOnFile", (args) => {
+    vscode.commands.registerCommand("finecode.runActionOnFile", async (args) => {
+        const { document } = vscode.window.activeTextEditor || {};
+        if (!document) {
+            console.error('no document');
+            return;
+        }
         const executeCommandParams: ExecuteCommandParams = {
             command: 'finecode.runActionOnFile',
-            arguments: [args.projectPath, vscode.window.activeTextEditor?.document.uri.path]
+            arguments: [args.projectPath, vscode.window.activeTextEditor?.document.uri.path, vscode.window.activeTextEditor?.document.getText()]
         };
-        lsClient?.sendRequest(ExecuteCommandRequest.type, executeCommandParams);
+        const result = await lsClient?.sendRequest(ExecuteCommandRequest.type, executeCommandParams);
+
+        if (args.projectPath.endsWith(':format') && result.resultText) {
+            // is it possible just to run vscode document formatting?
+            const lastLineLength = document.lineAt(document.lineCount - 1).text.length;
+            const edit = new vscode.WorkspaceEdit();
+            edit.replace(document.uri, new vscode.Range(new vscode.Position(0, 0), new vscode.Position(document.lineCount - 1, lastLineLength > 0 ? lastLineLength - 1 : 0)), result.resultText);
+
+            await vscode.workspace.applyEdit(edit);
+        }
     });
 
     // task provider:
     // docs: https://code.visualstudio.com/api/extension-guides/task-provider
     // example: https://github.com/microsoft/vscode-extension-samples/tree/main/task-provider-sample
-    let rakePromise: Thenable<vscode.Task[]> | undefined = undefined;
+    // let rakePromise: Thenable<vscode.Task[]> | undefined = undefined;
     fineCodeTaskProvider = vscode.tasks.registerTaskProvider("finecode", {
         provideTasks: () => {
-            const testTasks: vscode.Task[] = [
-                new vscode.Task(
-                    { type: "finecode", task: "lint" },
-                    vscode.TaskScope.Workspace, // TODO: workspace dir?
-                    "lint",
-                    "finecode",
-                    new vscode.ShellExecution("finecode lint")
-                ),
-            ];
+            // const testTasks: vscode.Task[] = [
+            //     new vscode.Task(
+            //         { type: "finecode", task: "lint" },
+            //         vscode.TaskScope.Workspace, // TODO: workspace dir?
+            //         "lint",
+            //         "finecode",
+            //         new vscode.ShellExecution("finecode lint")
+            //     ),
+            // ];
 
-            if (!rakePromise) {
-                rakePromise = Promise.resolve(testTasks);
-            }
-            return rakePromise;
+            // if (!rakePromise) {
+            //     rakePromise = Promise.resolve(testTasks);
+            // }
+            // return rakePromise;
+            return Promise.resolve([]);
         },
         resolveTask(_task: vscode.Task): vscode.Task | undefined {
             console.log("resolve", _task);
@@ -134,16 +149,35 @@ export async function activate(context: vscode.ExtensionContext) {
     // The command has been defined in the package.json file
     // Now provide the implementation of the command with registerCommand
     // The commandId parameter must match the command field in package.json
-    const disposable = vscode.commands.registerCommand(
-        "finecode-vscode.helloWorld",
-        () => {
-            // The code you place here will be executed every time your command is executed
-            // Display a message box to the user
-            vscode.window.showInformationMessage("Hello World from FineCode!");
-        }
-    );
+    // const disposable = vscode.commands.registerCommand(
+    //     "finecode-vscode.helloWorld",
+    //     () => {
+    //         // The code you place here will be executed every time your command is executed
+    //         // Display a message box to the user
+    //         vscode.window.showInformationMessage("Hello World from FineCode!");
+    //     }
+    // );
+    // context.subscriptions.push(disposable);
 
-    context.subscriptions.push(disposable);
+    // TODO: make dynamic
+    vscode.languages.registerDocumentFormattingEditProvider('python', {
+        provideDocumentFormattingEdits(document: vscode.TextDocument): vscode.ProviderResult<vscode.TextEdit[]> {
+            // TODO: call server
+            console.log('format');
+            return new Promise(async (resolve, reject) => {
+                const lsClient = await getLSClient();
+                const executeCommandParams: ExecuteCommandParams = {
+                    command: 'finecode.runActionOnFile',
+                    arguments: ['format', document.uri.path, document.getText()]
+                };
+                const newText = await lsClient.sendRequest(ExecuteCommandRequest.type, executeCommandParams);
+                // TODO: check whether text was changed
+                // TODO: analyze whether formatting only parts of document would be more efficient
+                const lastLineLength = document.lineAt(document.lineCount - 1).text.length;
+                return resolve([vscode.TextEdit.replace(new vscode.Range(new vscode.Position(0, 0), new vscode.Position(document.lineCount - 1, lastLineLength > 0 ? lastLineLength - 1 : 0)), newText)]);
+            });
+        }
+    });
 }
 
 // This method is called when your extension is deactivated
