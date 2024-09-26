@@ -170,11 +170,15 @@ export async function activate(context: vscode.ExtensionContext) {
                     command: 'finecode.runActionOnFile',
                     arguments: ['format', document.uri.path, document.getText()]
                 };
-                const newText = await lsClient.sendRequest(ExecuteCommandRequest.type, executeCommandParams);
+                const result = await lsClient.sendRequest(ExecuteCommandRequest.type, executeCommandParams);
                 // TODO: check whether text was changed
                 // TODO: analyze whether formatting only parts of document would be more efficient
-                const lastLineLength = document.lineAt(document.lineCount - 1).text.length;
-                return resolve([vscode.TextEdit.replace(new vscode.Range(new vscode.Position(0, 0), new vscode.Position(document.lineCount - 1, lastLineLength > 0 ? lastLineLength - 1 : 0)), newText)]);
+                if (result.resultText) {
+                    const lastLineLength = document.lineAt(document.lineCount - 1).text.length;
+                    return resolve([vscode.TextEdit.replace(new vscode.Range(new vscode.Position(0, 0), new vscode.Position(document.lineCount - 1, lastLineLength > 0 ? lastLineLength - 1 : 0)), result.resultText)]);
+                } else {
+                    return resolve([]);
+                }
             });
         }
     });

@@ -292,6 +292,7 @@ connection.onExecuteCommand(async (params: ExecuteCommandParams) => {
     if (!finecodeFound) {
         return;
     }
+    console.log('execute command', params.command, params.arguments);
     if (params.command === 'finecode.runActionOnFile' || params.command === 'finecode.runActionOnProject') {
         if (params.arguments === undefined) {
             console.error("Unexpected: no arguments in command");
@@ -303,11 +304,13 @@ connection.onExecuteCommand(async (params: ExecuteCommandParams) => {
         if (params.command === 'finecode.runActionOnFile') {
             applyOn = params.arguments[1];
             applyOnText = params.arguments.length > 1 ? params.arguments[2] : "";
+        } else if (params.command === "finecode.runActionOnProject") {
+            applyOn = actionNodeId.split('::')[0];
         }
         const result = await workspaceManagerClient.runAction({ actionNodeId, applyOn, applyOnText });
         return result;
     }
-    console.log('execute command', params.command, params.arguments, ' - not found');
+    console.log('execute command - not found');
 });
 
 // Make the text document manager listen on the connection
