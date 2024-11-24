@@ -1,6 +1,7 @@
 // unexpected errors in extension have unclear logs so that we don't even see in which service it
 // happens. Add log on error in each service to avoid that
-import { rpcUnaryUnaryCall, configure } from 'modapp-js/dist/rpc-json.js';
+import { rpcUnaryUnaryCall, configure } from 'modapp-js/dist-node/rpc-json.js';
+import { keepRunningUntilDisconnect } from 'modapp-js/dist-node/modapp-service.js';
 import { FinecodeGetActionsResponse, FinecodeAddWorkspaceDirRequest, FinecodeAddWorkspaceDirResponse, FinecodeGetActionsRequest, RunActionRequest, RunActionResponse } from './requests';
 
 export const addWorkspaceDir = (requestData: FinecodeAddWorkspaceDirRequest): FinecodeAddWorkspaceDirResponse => {
@@ -31,4 +32,4 @@ export const runAction = (requestData: RunActionRequest): RunActionResponse => {
     }
 };
 
-export { configure };
+export { configure, keepRunningUntilDisconnect };

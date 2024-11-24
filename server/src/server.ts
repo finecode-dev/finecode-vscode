@@ -33,11 +33,12 @@ const connection = createConnection(ProposedFeatures.all);
 let hasConfigurationCapability = false;
 let hasWorkspaceFolderCapability = false;
 let hasDiagnosticRelatedInformationCapability = false;
-let finecodeFound = false;
+// let finecodeFound = false;
 let workspaceManagerProcess: ChildProcessByStdio<Writable, Readable, Readable> | null = null;
 let workspaceManagerAddress: string | undefined = undefined;
+let keepRunningUntilDisconnectStream: any | null = null;
 
-const waitForConnection = (): Promise<null> => {
+const waitForConnection = (): Promise<void> => {
     return new Promise((resolve, reject) => {
         let retries = 0;
         const checkConnection = () => {
@@ -48,7 +49,7 @@ const waitForConnection = (): Promise<null> => {
                 setTimeout(checkConnection, 100);
                 retries++;
             } else {
-                resolve(null);
+                resolve();
             }
         };
         checkConnection();
@@ -68,7 +69,7 @@ const readFinecodeCommand = (filepath: string): string => {
 const checkLogForServerStart = (logLine: string): void => {
     // NOTE: subprocesses can print the same start logs as the main process, check logs only until
     // main process starts
-    if (logLine.includes('Start web socketify server:')) {
+    if (logLine.includes('Start server:')) {
         const _workspaceManagerAddress = 'http://' + logLine.split('server: ')[1].split('\n')[0];
         console.log('workspace manager address: ', _workspaceManagerAddress);
         workspaceManagerClient.configure({ url: _workspaceManagerAddress as string });
@@ -84,11 +85,13 @@ const checkLogForServerStart = (logLine: string): void => {
                 }
             });
             if (addRequests) {
-                Promise.all(addRequests).then(() => {
+                Promise.all(addRequests).then(async () => {
                     // address is used as flag of started workspace manager, set it after adding
                     // all workspace dirs
                     workspaceManagerAddress = _workspaceManagerAddress;
                     console.log('dirs successfully registered');
+                    keepRunningUntilDisconnectStream = await workspaceManagerClient.keepRunningUntilDisconnect({});
+                    console.log("start 'keep running until disconnect' stream");
                 });
             }
             return;
@@ -97,13 +100,17 @@ const checkLogForServerStart = (logLine: string): void => {
 };
 
 const initWorkspaceManager = async (): Promise<undefined> => {
+    console.log('Init workspace manager');
     let wsDir: string | undefined = undefined;
     let finecodeCmd: string | undefined = undefined;
+    let finecodeFound = false;
     // TODO: handle errors
     const dirs = await connection.workspace.getWorkspaceFolders();
     if (!dirs) {
+        console.log('No workspace dirs');
         return;
     }
+    console.log('Workspace dirs: ', dirs);
     for (const dir of dirs) {
         const dirPath = dir.uri.replace('file://', '');
         const finecodeShPath = dirPath + '/finecode.sh';
@@ -122,7 +129,7 @@ const initWorkspaceManager = async (): Promise<undefined> => {
     if (finecodeFound && finecodeCmd) {
         const finecodeCmdSplit = (finecodeCmd as string).split(' ');
         workspaceManagerProcess = spawn(finecodeCmdSplit[0], [...finecodeCmdSplit.slice(1, finecodeCmdSplit.length), 'start-api'], { cwd: wsDir });
-        console.log('start workspace manager');
+        console.log('start workspace manager in', wsDir);
         // TODO: handle error of start?
         workspaceManagerProcess.stdout.on('data', (data) => {
             const dataString = data.toString();
@@ -203,6 +210,10 @@ connection.onInitialized(() => {
 });
 
 connection.onShutdown(() => {
+    if (keepRunningUntilDisconnectStream !== null) {
+        console.log("end 'keep running until disconnect' stream");
+        keepRunningUntilDisconnectStream.end();
+    }
     if (workspaceManagerProcess !== null) {
         workspaceManagerProcess.stdout.destroy();
         workspaceManagerProcess.stderr.destroy();
@@ -272,11 +283,13 @@ connection.onDidChangeWatchedFiles((_change) => {
 // });
 
 connection.onRequest(FinecodeGetActionsRequestType, async (params) => {
-    if (!finecodeFound) {
-        console.log('3 not found');
-        return {};
+    try {
+        await waitForConnection();
+    } catch {
+        console.log('No connection to workspace manager');
+        return;
     }
-    await waitForConnection();
+
     console.log('->', params);
     try {
         const actions = await workspaceManagerClient.getActionList(params);
@@ -289,9 +302,13 @@ connection.onRequest(FinecodeGetActionsRequestType, async (params) => {
 });
 
 connection.onExecuteCommand(async (params: ExecuteCommandParams) => {
-    if (!finecodeFound) {
+    try {
+        await waitForConnection();
+    } catch {
+        console.log('No connection to workspace manager');
         return;
     }
+
     console.log('execute command', params.command, params.arguments);
     if (params.command === 'finecode.runActionOnFile' || params.command === 'finecode.runActionOnProject') {
         if (params.arguments === undefined) {
@@ -307,8 +324,13 @@ connection.onExecuteCommand(async (params: ExecuteCommandParams) => {
         } else if (params.command === "finecode.runActionOnProject") {
             applyOn = actionNodeId.split('::')[0];
         }
-        const result = await workspaceManagerClient.runAction({ actionNodeId, applyOn, applyOnText });
-        return result;
+        try {
+            const result = await workspaceManagerClient.runAction({ actionNodeId, applyOn, applyOnText });
+            return result;
+        } catch (error) {
+            console.log("Action running error", error);
+            return null;
+        }
     }
     console.log('execute command - not found');
 });

@@ -8,7 +8,7 @@
 		"node": "*"
 	},
 	"dependencies": {
-		"modapp-js": "^0.0.5",
+		"modapp-js": "^0.0.1",
 		"vscode-languageserver": "^9.0.1"
 	},
 	"scripts": {}

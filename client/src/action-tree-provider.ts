@@ -22,8 +22,15 @@ type FinecodeGetActionsResponse = {
 };
 
 const actionNodeToAction = (node: ActionTreeNode): Action => {
-    const collapsible = node.nodeType !== NodeType.ACTION;
-    return new Action(node.name, collapsible ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.None, node.nodeId, node.nodeType);
+    let state = vscode.TreeItemCollapsibleState.None;
+    if (node.nodeType === NodeType.PACKAGE) {
+        state = vscode.TreeItemCollapsibleState.Expanded;
+    } else if (node.nodeType === NodeType.DIRECTORY) {
+        // directories are shown only to be able to create a new packages in them. It happens not
+        // so often, collapse by default
+        state = vscode.TreeItemCollapsibleState.Collapsed;
+    }
+    return new Action(node.name, state, node.nodeId, node.nodeType);
 };
 
 export class FineCodeActionsProvider
@@ -164,7 +171,8 @@ class Action extends vscode.TreeItem {
             "assets",
             "icons",
             "light",
-            (this.actionType === NodeType.PACKAGE) ? "package.svg" : "symbol-event.svg"
+            // TODO: folder / folder-opened doesn't change, investigate why
+            (this.actionType === NodeType.PACKAGE) ? "package.svg" : ((this.actionType === NodeType.DIRECTORY) ? this.collapsibleState === vscode.TreeItemCollapsibleState.Expanded ? "folder-opened.svg" : "folder.svg" : "symbol-event.svg")
         ),
         dark: path.join(
             __filename,
@@ -172,9 +180,10 @@ class Action extends vscode.TreeItem {
             "assets",
             "icons",
             "dark",
-            (this.actionType === NodeType.PACKAGE) ? "package.svg" : "symbol-event.svg"
+            // TODO: folder / folder-opened doesn't change, investigate why
+            (this.actionType === NodeType.PACKAGE) ? "package.svg" : ((this.actionType === NodeType.DIRECTORY) ? this.collapsibleState === vscode.TreeItemCollapsibleState.Expanded ? "folder-opened.svg" : "folder.svg" : "symbol-event.svg")
         ),
     };
 
-    contextValue = (this.actionType === NodeType.PACKAGE) ? "package" : "action";
+    contextValue = (this.actionType === NodeType.PACKAGE) ? "package" : this.actionType === NodeType.DIRECTORY ? "directory" : "action";
 }
