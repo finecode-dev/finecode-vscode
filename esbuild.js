@@ -44,7 +44,7 @@ async function client() {
                 // if not specified, this plugin uses ESBuild.build outdir/outfile options as base path.
                 resolveFrom: "cwd",
                 assets: {
-                    from: ["./client/assets/**/*"],
+                    from: ["./client/src/assets/**/*"],
                     to: ["./dist/assets/"],
                 },
                 watch: true,
@@ -61,33 +61,8 @@ async function client() {
     }
 }
 
-async function server() {
-	const ctx = await esbuild.context({
-        entryPoints: ["server/src/server.ts"],
-        bundle: true,
-        format: "cjs",
-        minify: production,
-        sourcemap: !production,
-        sourcesContent: false,
-        platform: "node",
-        outfile: "dist/server.js",
-        external: ["vscode"],
-        logLevel: "silent",
-        plugins: [
-            /* add to the end of plugins array */
-            esbuildProblemMatcherPlugin,
-        ],
-    });
-    if (watch) {
-        await ctx.watch();
-    } else {
-        await ctx.rebuild();
-        await ctx.dispose();
-    }
-}
-
 async function main() {
-	Promise.all([client(), server()]);
+    client();
 }
 
 main().catch((e) => {

@@ -16,6 +16,19 @@
 				"${workspaceFolder}/dist/**/*.js"
 			],
 			"preLaunchTask": "${defaultBuildTask}"
-		}
-	]
+		},
+	],
+	"compounds": [
+        {
+            "name": "Debug Extension and Python",
+            "configurations": ["Run Extension", "Python: WM"],
+            "stopAll": true,
+            // "preLaunchTask": "npm: watch",
+            "presentation": {
+                "hidden": false,
+                "group": "",
+                "order": 1
+            }
+        }
+    ]
 }

@@ -7,7 +7,6 @@
             "label": "watch",
             "dependsOn": [
                 "npm: watch:tsc-client",
-                "npm: watch:tsc-server",
                 "npm: watch:esbuild"
             ],
             "presentation": {
@@ -37,18 +36,6 @@
             "problemMatcher": "$tsc-watch",
             "isBackground": true,
             "label": "npm: watch:tsc-client",
-            "presentation": {
-                "group": "watch",
-                "reveal": "never"
-            }
-        },
-        {
-            "type": "npm",
-            "script": "watch:tsc-server",
-            "group": "build",
-            "problemMatcher": "$tsc-watch",
-            "isBackground": true,
-            "label": "npm: watch:tsc-server",
             "presentation": {
                 "group": "watch",
                 "reveal": "never"
