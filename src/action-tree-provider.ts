@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import * as lsProtocol from "vscode-languageserver-protocol";
 import { getLSClient } from "./extension";
 import path from "path";
 
@@ -98,14 +99,13 @@ export class FineCodeActionsProvider
 
     private loadActions(parentNodeId: string): Promise<void> {
         return new Promise((resolve, reject) => {
-            console.log(1);
             getLSClient().then((lsClient) => {
-                console.log('1->', lsClient);
+                const requestParams: lsProtocol.ExecuteCommandParams = {
+                    command: 'finecode.getActions',
+                    arguments: [parentNodeId]
+                };
                 lsClient
-                    .sendRequest("finecode/getActions", {
-                        // workspaceRoot: this.workspaceRoot,
-                        parentNodeId
-                    })
+                    .sendRequest(lsProtocol.ExecuteCommandRequest.method, requestParams)
                     .then((response) => {
                         console.log('resp', response);
                         // TODO: investigate why this occurs: we get empty object at start
@@ -165,7 +165,7 @@ class Action extends vscode.TreeItem {
     }
 
     iconPath = {
-        light: path.join(
+        light: vscode.Uri.parse(path.join(
             __filename,
             "..",
             "assets",
@@ -173,8 +173,8 @@ class Action extends vscode.TreeItem {
             "light",
             // TODO: folder / folder-opened doesn't change, investigate why
             (this.actionType === NodeType.PACKAGE) ? "package.svg" : ((this.actionType === NodeType.DIRECTORY) ? this.collapsibleState === vscode.TreeItemCollapsibleState.Expanded ? "folder-opened.svg" : "folder.svg" : "symbol-event.svg")
-        ),
-        dark: path.join(
+        )),
+        dark: vscode.Uri.parse(path.join(
             __filename,
             "..",
             "assets",
@@ -182,8 +182,8 @@ class Action extends vscode.TreeItem {
             "dark",
             // TODO: folder / folder-opened doesn't change, investigate why
             (this.actionType === NodeType.PACKAGE) ? "package.svg" : ((this.actionType === NodeType.DIRECTORY) ? this.collapsibleState === vscode.TreeItemCollapsibleState.Expanded ? "folder-opened.svg" : "folder.svg" : "symbol-event.svg")
-        ),
+        )),
     };
 
-    contextValue = (this.actionType === NodeType.PACKAGE) ? "package" : this.actionType === NodeType.DIRECTORY ? "directory" : "action";
+    contextValue = (this.actionType === NodeType.PACKAGE) ? "project" : this.actionType === NodeType.DIRECTORY ? "directory" : "action";
 }

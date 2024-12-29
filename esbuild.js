@@ -28,7 +28,7 @@ const esbuildProblemMatcherPlugin = {
 
 async function client() {
 	const ctx = await esbuild.context({
-        entryPoints: ["client/src/extension.ts"],
+        entryPoints: ["./src/extension.ts"],
         bundle: true,
         format: "cjs",
         minify: production,
@@ -44,7 +44,7 @@ async function client() {
                 // if not specified, this plugin uses ESBuild.build outdir/outfile options as base path.
                 resolveFrom: "cwd",
                 assets: {
-                    from: ["./client/src/assets/**/*"],
+                    from: ["././src/assets/**/*"],
                     to: ["./dist/assets/"],
                 },
                 watch: true,
