@@ -38,9 +38,6 @@ export async function activate(context: vscode.ExtensionContext) {
             : ""; // : undefined; // TODO
     const actionsProvider = new FineCodeActionsProvider(rootPath);
     vscode.window.registerTreeDataProvider("fineCodeActions", actionsProvider);
-    vscode.commands.registerCommand("finecode.refreshActions", () =>
-        actionsProvider.refresh()
-    );
 
     // task provider:
     // docs: https://code.visualstudio.com/api/extension-guides/task-provider
@@ -102,6 +99,9 @@ export async function activate(context: vscode.ExtensionContext) {
             stopWorkspaceManager();
             runWorkspaceManager();
         }),
+        vscode.commands.registerCommand("finecode.refreshActions", () =>
+            actionsProvider.refresh()
+        ),
     );
 }
 

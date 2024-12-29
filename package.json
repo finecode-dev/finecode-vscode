@@ -103,6 +103,14 @@
           "light": "dist/assets/icons/light/refresh.svg",
           "dark": "dist/assets/icons/dark/refresh.svg"
         }
+      },
+      {
+        "command": "finecode.reloadAction",
+        "title": "Reload action",
+        "icon": {
+          "light": "dist/assets/icons/light/refresh.svg",
+          "dark": "dist/assets/icons/dark/refresh.svg"
+        }
       }
     ],
     "viewsContainers": {
@@ -138,6 +146,11 @@
         }
       ],
       "view/item/context": [
+        {
+          "command": "finecode.reloadAction",
+          "when": "view == fineCodeActions && viewItem == action",
+          "group": "inline"
+        },
         {
           "command": "finecode.runActionOnProject",
           "when": "view == fineCodeActions && viewItem == action",
