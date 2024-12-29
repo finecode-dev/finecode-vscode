@@ -7,9 +7,9 @@ import {
 } from "vscode-languageclient/node";
 import fs from 'node:fs';
 import { FineCodeActionsProvider } from "./action-tree-provider";
+import { createOutputChannel } from './logging';
 
 let lsClient: LanguageClient | undefined;
-let fineCodeTaskProvider: vscode.Disposable | undefined;
 
 
 const readFinecodeCommand = (filepath: string): string => {
@@ -22,13 +22,10 @@ const readFinecodeCommand = (filepath: string): string => {
     return '';
 };
 
-
 export async function activate(context: vscode.ExtensionContext) {
     console.log(
         'Congratulations, your extension "finecode-vscode" is now active!'
     );
-
-    await runWorkspaceManager();
 
     // tree data provider
     const rootPath =
@@ -37,13 +34,12 @@ export async function activate(context: vscode.ExtensionContext) {
             ? vscode.workspace.workspaceFolders[0].uri.fsPath
             : ""; // : undefined; // TODO
     const actionsProvider = new FineCodeActionsProvider(rootPath);
-    vscode.window.registerTreeDataProvider("fineCodeActions", actionsProvider);
+
 
     // task provider:
     // docs: https://code.visualstudio.com/api/extension-guides/task-provider
     // example: https://github.com/microsoft/vscode-extension-samples/tree/main/task-provider-sample
-    // let rakePromise: Thenable<vscode.Task[]> | undefined = undefined;
-    fineCodeTaskProvider = vscode.tasks.registerTaskProvider("finecode", {
+    const taskProviderConfig = {
         provideTasks: () => {
             // const testTasks: vscode.Task[] = [
             //     new vscode.Task(
@@ -78,41 +74,33 @@ export async function activate(context: vscode.ExtensionContext) {
             // }
             // return undefined;
         },
-    });
+    };
 
-    // The command has been defined in the package.json file
-    // Now provide the implementation of the command with registerCommand
-    // The commandId parameter must match the command field in package.json
-    // const disposable = vscode.commands.registerCommand(
-    //     "finecode-vscode.helloWorld",
-    //     () => {
-    //         // The code you place here will be executed every time your command is executed
-    //         // Display a message box to the user
-    //         vscode.window.showInformationMessage("Hello World from FineCode!");
-    //     }
-    // );
-    // context.subscriptions.push(disposable);
+    // default output channel causes multiple loggers on restart of language server. Use own one
+    // to avoid this problem
+    const outputChannel = createOutputChannel("Finecode LSP Server");
+    await runWorkspaceManager(outputChannel);
 
     context.subscriptions.push(
+        vscode.window.registerTreeDataProvider("fineCodeActions", actionsProvider),
         vscode.commands.registerCommand('finecode.restartWorkspaceManager', async () => {
             console.log('Restarting workspace manager');
             stopWorkspaceManager();
-            runWorkspaceManager();
+            runWorkspaceManager(outputChannel);
         }),
         vscode.commands.registerCommand("finecode.refreshActions", () =>
             actionsProvider.refresh()
         ),
+        vscode.tasks.registerTaskProvider("finecode", taskProviderConfig),
+        outputChannel
     );
 }
 
 export async function deactivate() {
     await stopWorkspaceManager();
-    if (fineCodeTaskProvider) {
-        fineCodeTaskProvider.dispose();
-    }
 }
 
-const runWorkspaceManager = async () => {
+const runWorkspaceManager = async (outputChannel: vscode.LogOutputChannel) => {
     if (!vscode.workspace.workspaceFolders) {
         console.log("No workspace folders, add one and restart extension. Autoreload is not supported yet");
         return;
@@ -153,10 +141,8 @@ const runWorkspaceManager = async () => {
     const clientOptions: LanguageClientOptions = {
         // TODO: dynamic or for all?
         documentSelector: [{ scheme: "file", language: "python" }],
-        // synchronize: {
-        //     // Notify the server about file changes to '.clientrc files contained in the workspace
-        //     fileEvents: workspace.createFileSystemWatcher("**/.clientrc"),
-        // },
+        outputChannel: outputChannel,
+        traceOutputChannel: outputChannel,
     };
 
     // Create the language client and start the client.
