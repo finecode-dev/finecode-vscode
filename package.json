@@ -5,7 +5,7 @@
   "engines": {
     "vscode": "^1.90.0"
   },
-  "version": "1.0.1",
+  "version": "1.0.2",
   "preview": true,
   "serverInfo": {
     "name": "FineCode",
@@ -90,6 +90,11 @@
           "light": "dist/assets/icons/light/run.svg",
           "dark": "dist/assets/icons/dark/run.svg"
         }
+      },
+      {
+        "command": "finecode.restartWorkspaceManager",
+        "title": "Restart Workspace Manager",
+        "category": "FineCode"
       }
     ],
     "viewsContainers": {
