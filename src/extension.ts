@@ -6,8 +6,10 @@ import {
     TransportKind,
 } from "vscode-languageclient/node";
 import fs from 'node:fs';
-import { FineCodeActionsProvider } from "./action-tree-provider";
+import { FineCodeActionsProvider, ActionTreeNode, FinecodeGetActionsResponse } from "./action-tree-provider";
 import { createOutputChannel } from './logging';
+import * as lsProtocol from "vscode-languageserver-protocol";
+
 
 let lsClient: LanguageClient | undefined;
 
@@ -79,20 +81,67 @@ export async function activate(context: vscode.ExtensionContext) {
     // default output channel causes multiple loggers on restart of language server. Use own one
     // to avoid this problem
     const outputChannel = createOutputChannel("Finecode LSP Server");
-    await runWorkspaceManager(outputChannel);
+    await runWorkspaceManager(outputChannel, actionsProvider);
 
     context.subscriptions.push(
         vscode.window.registerTreeDataProvider("fineCodeActions", actionsProvider),
         vscode.commands.registerCommand('finecode.restartWorkspaceManager', async () => {
             console.log('Restarting workspace manager');
             stopWorkspaceManager();
-            runWorkspaceManager(outputChannel);
+            runWorkspaceManager(outputChannel, actionsProvider);
         }),
         vscode.commands.registerCommand("finecode.refreshActions", () =>
             actionsProvider.refresh()
         ),
         vscode.tasks.registerTaskProvider("finecode", taskProviderConfig),
-        outputChannel
+        outputChannel,
+        vscode.commands.registerCommand("finecode.showEditorActions", async () => {
+            if (lsClient === undefined) {
+                console.error("LS Client is not initialized");
+                return;
+            }
+
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) {
+                console.log('no active editor');
+                return;
+            }
+
+            if (!editor.selection.isEmpty) {
+                // TODO: handle range
+                console.log('actions on range are currently not supported');
+                return;
+            }
+
+            const requestParams: lsProtocol.ExecuteCommandParams = {
+                command: 'finecode.getActionsForPosition',
+                arguments: [editor.selection.active]
+            };
+
+            let actions: FinecodeGetActionsResponse;
+            try {
+                actions = await lsClient.sendRequest(lsProtocol.ExecuteCommandRequest.method, requestParams);
+            } catch (err) {
+                // TODO: show error
+                return;
+            }
+            const items = actions.nodes.map(node => ({ label: node.name, command: node.nodeId}))
+            const selectedItem = await vscode.window.showQuickPick(items);
+            if (selectedItem !== undefined) {
+                const runRequestParams: lsProtocol.ExecuteCommandParams = {
+                    command: 'finecode.runAction',
+                    arguments: [editor.selection.active]
+                };
+
+                console.log('selected, run', selectedItem);
+                try {
+                    await lsClient.sendRequest(lsProtocol.ExecuteCommandRequest.method, runRequestParams);
+                } catch (err) {
+                    // TODO: show error
+                    return;
+                }
+            }
+        })
     );
 }
 
@@ -100,7 +149,7 @@ export async function deactivate() {
     await stopWorkspaceManager();
 }
 
-const runWorkspaceManager = async (outputChannel: vscode.LogOutputChannel) => {
+const runWorkspaceManager = async (outputChannel: vscode.LogOutputChannel, actionsProvider: FineCodeActionsProvider) => {
     if (!vscode.workspace.workspaceFolders) {
         console.log("No workspace folders, add one and restart extension. Autoreload is not supported yet");
         return;
@@ -180,6 +229,10 @@ const runWorkspaceManager = async (outputChannel: vscode.LogOutputChannel) => {
         }
 
         return { text: document.getText() };
+    });
+
+    lsClient.onNotification('actionsNodes/changed', (data: ActionTreeNode) => {
+        actionsProvider.updateItem(data);
     });
 };
 

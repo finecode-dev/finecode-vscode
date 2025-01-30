@@ -11,14 +11,15 @@ enum NodeType {
     PRESET = 3,
 };
 
-type ActionTreeNode = {
+export type ActionTreeNode = {
     nodeId: string;
     name: string;
     nodeType: NodeType;
     subnodes: ActionTreeNode[];
+    status: string;
 };
 
-type FinecodeGetActionsResponse = {
+export type FinecodeGetActionsResponse = {
     nodes: ActionTreeNode[];
 };
 
@@ -31,7 +32,7 @@ const actionNodeToAction = (node: ActionTreeNode): Action => {
         // so often, collapse by default
         state = vscode.TreeItemCollapsibleState.Collapsed;
     }
-    return new Action(node.name, state, node.nodeId, node.nodeType);
+    return new Action(node.nodeId, node.name, state, node.nodeId, node.nodeType, node.status);
 };
 
 export class FineCodeActionsProvider
@@ -60,6 +61,12 @@ export class FineCodeActionsProvider
         // automatically
         this._changeTreeData.fire();
         this.refreshing = false;
+    }
+
+    public updateItem(itemData: ActionTreeNode) {
+        const updatedAction = actionNodeToAction(itemData);
+        console.log('update item', updatedAction);
+        this._changeTreeData.fire(updatedAction);
     }
 
     getTreeItem(element: Action): vscode.TreeItem {
@@ -133,27 +140,35 @@ export class FineCodeActionsProvider
 
     private getActions(parentNodeId: string): Promise<FinecodeGetActionsResponse> {
         return new Promise((resolve, reject) => {
-            // if (!this.loaded) {
             this.loadActions(parentNodeId)
                 .then(() => resolve(<FinecodeGetActionsResponse>this.actions))
                 .catch((error) => reject(error));
-            // } else {
-            //     resolve(<FinecodeGetActionsResponse>this.actions);
-            // }
         });
     }
 }
 
 class Action extends vscode.TreeItem {
     constructor(
+        public readonly id: string,
         public readonly label: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
         public readonly projectPath: string,
-        public readonly actionType: NodeType
+        public readonly actionType: NodeType,
+        public readonly status: string,
     ) {
-        super(label, collapsibleState);
+        let formattedLabel = label;
+        if (status.length > 0) {
+            formattedLabel = `[${status[0].toUpperCase()}] ${label}`;
+        }
+
+        super(formattedLabel, collapsibleState);
+        this.id = id;
+        this.label = formattedLabel;
         this.projectPath = projectPath;
         this.actionType = actionType;
+        this.status = status;
+
+        this.tooltip = status;
     }
 
     toJSON() {
@@ -161,6 +176,7 @@ class Action extends vscode.TreeItem {
             label: this.label,
             collapsibleState: this.collapsibleState,
             projectPath: this.projectPath,
+            status: this.status
         };
     }
 

@@ -61,7 +61,7 @@
     "commands": [
       {
         "command": "finecode.refreshActions",
-        "title": "Refresh",
+        "title": "Reload",
         "icon": {
           "light": "dist/assets/icons/light/refresh.svg",
           "dark": "dist/assets/icons/dark/refresh.svg"
@@ -111,6 +111,10 @@
           "light": "dist/assets/icons/light/refresh.svg",
           "dark": "dist/assets/icons/dark/refresh.svg"
         }
+      },
+      {
+        "command": "finecode.showEditorActions",
+        "title": "FineCode Actions"
       }
     ],
     "viewsContainers": {
@@ -165,6 +169,11 @@
           "command": "finecode.restartExtensionRunner",
           "when": "view == fineCodeActions && viewItem == project",
           "group": "inline"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "finecode.showEditorActions"
         }
       ]
     },
