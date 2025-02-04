@@ -17,11 +17,26 @@
 			],
 			"preLaunchTask": "${defaultBuildTask}"
 		},
+		{
+			"name": "Run Extension with debug WM",
+			"type": "extensionHost",
+			"request": "launch",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}"
+			],
+			"outFiles": [
+				"${workspaceFolder}/dist/**/*.js"
+			],
+			"preLaunchTask": "${defaultBuildTask}",
+			"env": {
+				"FINECODE_DEBUG": "1"
+			}
+		},
 	],
 	"compounds": [
         {
             "name": "Debug Extension and Python",
-            "configurations": ["Run Extension", "Python: WM"],
+            "configurations": ["Run Extension with debug WM", "Python: WM"],
             "stopAll": true,
             // "preLaunchTask": "npm: watch",
             "presentation": {

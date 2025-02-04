@@ -179,9 +179,13 @@ const runWorkspaceManager = async (outputChannel: vscode.LogOutputChannel, actio
     }
 
     const finecodeCmdSplit = (finecodeCmd as string).split(' ');
+    const wmArgs = ['start-api', '--trace'];
+    if (process.env.FINECODE_DEBUG) {
+        wmArgs.push('--debug');
+    }
     const serverOptions: ServerOptions = {
         command: finecodeCmdSplit[0],
-        args: [...finecodeCmdSplit.slice(1), '-m', 'finecode.workspace_manager.cli', 'start-api', '--trace'], // , '--debug'
+        args: [...finecodeCmdSplit.slice(1), '-m', 'finecode.workspace_manager.cli', ...wmArgs],
         options: { cwd: wsDir, detached: false, shell: true },
         transport: TransportKind.stdio
     };
