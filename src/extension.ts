@@ -125,7 +125,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 // TODO: show error
                 return;
             }
-            const items = actions.nodes.map(node => ({ label: node.name, command: node.nodeId}))
+            const items = actions.nodes.map(node => ({ label: node.name, command: node.nodeId }))
             const selectedItem = await vscode.window.showQuickPick(items);
             if (selectedItem !== undefined) {
                 const runRequestParams: lsProtocol.ExecuteCommandParams = {
@@ -186,7 +186,14 @@ const runWorkspaceManager = async (outputChannel: vscode.LogOutputChannel, actio
     const serverOptions: ServerOptions = {
         command: finecodeCmdSplit[0],
         args: [...finecodeCmdSplit.slice(1), '-m', 'finecode.workspace_manager.cli', ...wmArgs],
-        options: { cwd: wsDir, detached: false, shell: true },
+        // detach from IDE to provide enough time after shutdown to gracefully exit
+        // and avoid not stopped running processes. Workspace Manager is responsible to
+        // exit the process as soon in possible after shutdown signal in any case.
+        //
+        // detached doesn't work as expected:
+        // https://github.com/microsoft/vscode-languageserver-node/issues/1595
+        // temporary detach extension runners instead of workspace manager
+        options: { cwd: wsDir, detached: false, shell: false },
         transport: TransportKind.stdio
     };
 

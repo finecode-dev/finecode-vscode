@@ -27,7 +27,7 @@ const actionNodeToAction = (node: ActionTreeNode): Action => {
     let state = vscode.TreeItemCollapsibleState.None;
     if (node.nodeType === NodeType.PACKAGE) {
         state = vscode.TreeItemCollapsibleState.Expanded;
-    } else if (node.nodeType === NodeType.DIRECTORY) {
+    } else if (node.nodeType === NodeType.DIRECTORY || node.nodeType === NodeType.ACTION) {
         // directories are shown only to be able to create a new packages in them. It happens not
         // so often, collapse by default
         state = vscode.TreeItemCollapsibleState.Collapsed;

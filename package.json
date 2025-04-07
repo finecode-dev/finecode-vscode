@@ -76,14 +76,6 @@
         }
       },
       {
-        "command": "finecode.runActionOnProject",
-        "title": "Run on project",
-        "icon": {
-          "light": "dist/assets/icons/light/run-all.svg",
-          "dark": "dist/assets/icons/dark/run-all.svg"
-        }
-      },
-      {
         "command": "finecode.runActionOnFile",
         "title": "Run on current file",
         "icon": {
@@ -152,11 +144,6 @@
       "view/item/context": [
         {
           "command": "finecode.reloadAction",
-          "when": "view == fineCodeActions && viewItem == action",
-          "group": "inline"
-        },
-        {
-          "command": "finecode.runActionOnProject",
           "when": "view == fineCodeActions && viewItem == action",
           "group": "inline"
         },
