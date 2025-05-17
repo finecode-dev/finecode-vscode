@@ -5,21 +5,21 @@
   "engines": {
     "vscode": "^1.90.0"
   },
-  "version": "1.0.2",
+  "version": "0.1.0",
   "preview": true,
   "serverInfo": {
     "name": "FineCode",
     "module": "finecode"
   },
-  "publisher": "aksem",
+  "publisher": "vladyslavhnatiuk",
   "license": "MIT",
-  "homepage": "https://github.com/Aksem/FineCode-VSCode",
+  "homepage": "https://github.com/finecode-dev/finecode-vscode",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Aksem/FineCode-VSCode.git"
+    "url": "https://github.com/finecode-dev/finecode-vscode.git"
   },
   "bugs": {
-    "url": "https://github.com/Aksem/FineCode-VSCode/issues"
+    "url": "https://github.com/finecode-dev/finecode-vscode/issues"
   },
   "galleryBanner": {
     "color": "#1e415e",
@@ -189,7 +189,8 @@
     "check-types": "tsc --noEmit -p .",
     "lint": "eslint src --ext ts",
     "test": "vscode-test",
-    "vsce-package": "vsce package -o finecode.vsix"
+    "vscode:package": "vsce package",
+    "vscode:publish": "vsce publish"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.6",
@@ -199,7 +200,7 @@
     "@typescript-eslint/parser": "^8.18.2",
     "@vscode/test-cli": "^0.0.9",
     "@vscode/test-electron": "^2.4.0",
-    "@vscode/vsce": "^3.2.1",
+    "@vscode/vsce": "^3.4.0",
     "esbuild": "^0.21.4",
     "esbuild-plugin-copy": "^2.1.1",
     "eslint": "^8.57.0",

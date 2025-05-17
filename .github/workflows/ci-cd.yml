@@ -24,9 +24,13 @@ jobs:
         cache: 'npm'
     - run: npm ci
     - run: npm run vscode:prepublish
-    - run: npm run vsce-package
+    - run: npm run vsce:package
+
+    - run: npm run vscode:publish -p $AZURE_ACCESS_TOKEN
+      if: github.event_name == 'release' && github.event.action == 'created'
+
     - uses: actions/upload-artifact@v4
       with:
-        path: "finecode.vsix"
+        path: "*.vsix"
         if-no-files-found: error
 
