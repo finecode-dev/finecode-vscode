@@ -23,8 +23,8 @@ jobs:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
     - run: npm ci
-    - run: npm run vscode:prepublish
-    - run: npm run vsce:package
+    - run: npm run vscode:prepackage
+    - run: npm run vscode:package
 
     - run: npm run vscode:publish -p $AZURE_ACCESS_TOKEN
       if: github.event_name == 'release' && github.event.action == 'created'
