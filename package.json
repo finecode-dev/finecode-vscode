@@ -5,13 +5,13 @@
   "engines": {
     "vscode": "^1.90.0"
   },
-  "version": "0.1.5",
+  "version": "0.1.6",
   "preview": true,
   "serverInfo": {
     "name": "FineCode",
     "module": "finecode"
   },
-  "publisher": "vladyslavhnatiuk",
+  "publisher": "VladyslavHnatiuk",
   "license": "MIT",
   "homepage": "https://github.com/finecode-dev/finecode-vscode",
   "repository": {
