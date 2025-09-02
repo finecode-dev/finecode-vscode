@@ -155,37 +155,31 @@ const runWorkspaceManager = async (outputChannel: vscode.LogOutputChannel, actio
         return;
     }
 
-    let finecodeCmd: string | undefined = undefined;
+    let devWorkspacePythonPath: string | undefined = undefined;
     let wsDir: string | undefined = undefined;
     let finecodeFound = false;
     for (const folder of vscode.workspace.workspaceFolders) {
         const dirPath = folder.uri.path;
-        const finecodeShPath = dirPath + '/finecode.sh';
-        if (fs.existsSync(finecodeShPath)) {
-            finecodeCmd = readFinecodeCommand(finecodeShPath);
-            if (finecodeCmd !== '') {
-                wsDir = dirPath;
-                finecodeFound = true;
-            } else {
-                console.log('finecode command is empty');
-            }
+        devWorkspacePythonPath = dirPath + '/.venvs/dev_workspace/bin/python';
+        if (fs.existsSync(devWorkspacePythonPath)) {
+            finecodeFound = true;
         }
         break;
     }
 
     if (!finecodeFound) {
-        console.log('No finecode.sh found in workspace folders. Add one and restart the extension.  Autoreload is not supported yet');
+        console.log('No dev_workspace found in workspace folders. Add one and restart the extension.  Autoreload is not supported yet');
         return;
     }
 
-    const finecodeCmdSplit = (finecodeCmd as string).split(' ');
+    const finecodeCmdSplit = (devWorkspacePythonPath as string).split(' ');
     const wmArgs = ['start-api', '--trace'];
     if (process.env.FINECODE_DEBUG) {
         wmArgs.push('--debug');
     }
     const serverOptions: ServerOptions = {
         command: finecodeCmdSplit[0],
-        args: [...finecodeCmdSplit.slice(1), '-m', 'finecode.workspace_manager.cli', ...wmArgs],
+        args: [...finecodeCmdSplit.slice(1), '-m', 'finecode.cli', ...wmArgs],
         // detach from IDE to provide enough time after shutdown to gracefully exit
         // and avoid not stopped running processes. Workspace Manager is responsible to
         // exit the process as soon in possible after shutdown signal in any case.
@@ -240,6 +234,12 @@ const runWorkspaceManager = async (outputChannel: vscode.LogOutputChannel, actio
         }
 
         return { text: document.getText() };
+    });
+
+    lsClient.onRequest('ide/startDebugging', async (data) => {
+        console.log('ide/startDebugging request', data);
+
+        await vscode.debug.startDebugging(undefined, data);
     });
 
     lsClient.onNotification('actionsNodes/changed', (data: ActionTreeNode) => {
