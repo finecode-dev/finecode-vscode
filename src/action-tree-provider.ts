@@ -8,7 +8,10 @@ enum NodeType {
     DIRECTORY = 0,
     PACKAGE = 1,
     ACTION = 2,
-    PRESET = 3,
+    ACTION_GROUP = 3,
+    PRESET = 4,
+    ENV_GROUP = 5,
+    ENV = 6
 };
 
 export type ActionTreeNode = {
@@ -25,9 +28,11 @@ export type FinecodeGetActionsResponse = {
 
 const actionNodeToAction = (node: ActionTreeNode): Action => {
     let state = vscode.TreeItemCollapsibleState.None;
-    if (node.nodeType === NodeType.PACKAGE) {
-        state = vscode.TreeItemCollapsibleState.Expanded;
-    } else if (node.nodeType === NodeType.DIRECTORY || node.nodeType === NodeType.ACTION) {
+    if (node.nodeType === NodeType.PACKAGE
+        || node.nodeType === NodeType.DIRECTORY
+        || node.nodeType === NodeType.ACTION
+        || node.nodeType === NodeType.ENV_GROUP
+        || node.nodeType === NodeType.ACTION_GROUP) {
         // directories are shown only to be able to create a new packages in them. It happens not
         // so often, collapse by default
         state = vscode.TreeItemCollapsibleState.Collapsed;
@@ -180,26 +185,53 @@ class Action extends vscode.TreeItem {
         };
     }
 
-    iconPath = {
-        light: vscode.Uri.parse(path.join(
-            __filename,
-            "..",
-            "assets",
-            "icons",
-            "light",
-            // TODO: folder / folder-opened doesn't change, investigate why
-            (this.actionType === NodeType.PACKAGE) ? "package.svg" : ((this.actionType === NodeType.DIRECTORY) ? this.collapsibleState === vscode.TreeItemCollapsibleState.Expanded ? "folder-opened.svg" : "folder.svg" : "symbol-event.svg")
-        )),
-        dark: vscode.Uri.parse(path.join(
-            __filename,
-            "..",
-            "assets",
-            "icons",
-            "dark",
-            // TODO: folder / folder-opened doesn't change, investigate why
-            (this.actionType === NodeType.PACKAGE) ? "package.svg" : ((this.actionType === NodeType.DIRECTORY) ? this.collapsibleState === vscode.TreeItemCollapsibleState.Expanded ? "folder-opened.svg" : "folder.svg" : "symbol-event.svg")
-        )),
-    };
+    iconPath = this.getIconPath();
 
-    contextValue = (this.actionType === NodeType.PACKAGE) ? "project" : this.actionType === NodeType.DIRECTORY ? "directory" : "action";
+    private getIconPath() {
+        let iconName: string;
+        switch (this.actionType) {
+            case NodeType.PACKAGE:
+                iconName = "package.svg";
+                break;
+            case NodeType.DIRECTORY:
+                iconName = "folder.svg";
+                break;
+            case NodeType.ENV_GROUP:
+                iconName = "folder-library.svg";
+                break;
+            case NodeType.ENV:
+                iconName = "book.svg";
+                break;
+            case NodeType.ACTION_GROUP:
+                iconName = "symbol-method-arrow.svg";
+                break;
+            default:
+                iconName = "symbol-event.svg";
+                break;
+        }
+
+        return {
+            light: vscode.Uri.parse(path.join(__filename, "..", "assets", "icons", "light", iconName)),
+            dark: vscode.Uri.parse(path.join(__filename, "..", "assets", "icons", "dark", iconName))
+        };
+    }
+
+    contextValue = this.getContextValue();
+
+    private getContextValue(): string {
+        switch (this.actionType) {
+            case NodeType.PACKAGE:
+                return "project";
+            case NodeType.DIRECTORY:
+                return "directory";
+            case NodeType.ENV_GROUP:
+                return "envgroup";
+            case NodeType.ACTION_GROUP:
+                return "actiongroup";
+            case NodeType.ENV:
+                return "env";
+            default:
+                return "action";
+        }
+    }
 }

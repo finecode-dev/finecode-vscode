@@ -3,9 +3,9 @@
   "displayName": "FineCode",
   "description": "",
   "engines": {
-    "vscode": "^1.90.0"
+    "vscode": "^1.105.0"
   },
-  "version": "0.2.0",
+  "version": "0.2.1",
   "preview": true,
   "serverInfo": {
     "name": "FineCode",
@@ -97,6 +97,14 @@
         }
       },
       {
+        "command": "finecode.restartAndDebugExtensionRunner",
+        "title": "Restart and Debug Extension Runner",
+        "icon": {
+          "light": "dist/assets/icons/light/debug.svg",
+          "dark": "dist/assets/icons/dark/debug.svg"
+        }
+      },
+      {
         "command": "finecode.reloadAction",
         "title": "Reload action",
         "icon": {
@@ -154,7 +162,12 @@
         },
         {
           "command": "finecode.restartExtensionRunner",
-          "when": "view == fineCodeActions && viewItem == project",
+          "when": "view == fineCodeActions && viewItem == env",
+          "group": "inline"
+        },
+        {
+          "command": "finecode.restartAndDebugExtensionRunner",
+          "when": "view == fineCodeActions && viewItem == env",
           "group": "inline"
         }
       ],
@@ -195,19 +208,19 @@
   "devDependencies": {
     "@types/mocha": "^10.0.10",
     "@types/node": "^22.15.18",
-    "@types/vscode": "^1.90.0",
+    "@types/vscode": "^1.105.0",
     "@typescript-eslint/eslint-plugin": "^8.32.1",
     "@typescript-eslint/parser": "^8.32.1",
     "@vscode/test-cli": "^0.0.10",
     "@vscode/test-electron": "^2.5.2",
-    "@vscode/vsce": "^3.4.0",
-    "esbuild": "^0.25.4",
+    "@vscode/vsce": "^3.7.1",
+    "esbuild": "^0.27.2",
     "esbuild-plugin-copy": "^2.1.1",
     "eslint": "^8.57.0",
     "npm-run-all": "^4.1.5",
     "typescript": "^5.4.5"
   },
   "dependencies": {
-    "vscode-languageclient": "^9.0.1"
+    "vscode-languageclient": "^10.0.0-next.19"
   }
 }

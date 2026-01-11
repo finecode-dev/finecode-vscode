@@ -14,16 +14,6 @@ import * as lsProtocol from "vscode-languageserver-protocol";
 let lsClient: LanguageClient | undefined;
 
 
-const readFinecodeCommand = (filepath: string): string => {
-    try {
-        const data = fs.readFileSync(filepath, 'utf8');
-        return data.split('\n')[0];
-    } catch (err) {
-        console.error(err);
-    }
-    return '';
-};
-
 export async function activate(context: vscode.ExtensionContext) {
     console.log(
         'Congratulations, your extension "finecode-vscode" is now active!'
@@ -214,27 +204,27 @@ const runWorkspaceManager = async (outputChannel: vscode.LogOutputChannel, actio
 
     lsClient.onRequest('editor/documentMeta', () => {
         console.log('editor/documentMeta request');
-        const { document } = vscode.window.activeTextEditor || {};
-        if (!document) {
+        const activeEditor = vscode.window.activeTextEditor;
+        if (!activeEditor) {
             console.log('no active editor');
-            return;
+            throw new Error('No active text editor');
         }
 
         return {
-            uri: document.uri
+            uri: activeEditor.document.uri
         };
     });
 
-    lsClient.onRequest('editor/documentText', () => {
-        console.log('editor/documentText request');
-        const { document } = vscode.window.activeTextEditor || {};
-        if (!document) {
-            console.log('no active editor');
-            return;
-        }
+    // lsClient.onRequest('editor/documentText', () => {
+    //     console.log('editor/documentText request');
+    //     const { document } = vscode.window.activeTextEditor || {};
+    //     if (!document) {
+    //         console.log('no active editor');
+    //         return;
+    //     }
 
-        return { text: document.getText() };
-    });
+    //     return { text: document.getText() };
+    // });
 
     lsClient.onRequest('ide/startDebugging', async (data) => {
         console.log('ide/startDebugging request', data);

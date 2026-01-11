@@ -44,7 +44,7 @@ async function client() {
                 // if not specified, this plugin uses ESBuild.build outdir/outfile options as base path.
                 resolveFrom: "cwd",
                 assets: {
-                    from: ["././src/assets/**/*"],
+                    from: ["./src/assets/**/*"],
                     to: ["./dist/assets/"],
                 },
                 watch: true,
