@@ -15,6 +15,10 @@ let lsClient: LanguageClient | undefined;
 
 
 export async function activate(context: vscode.ExtensionContext) {
+    // Create output channel first so we can log everything
+    const outputChannel = createOutputChannel("Finecode LSP Server");
+    outputChannel.info('=== Finecode extension activation started ===');
+
     console.log(
         'Congratulations, your extension "finecode-vscode" is now active!'
     );
@@ -25,6 +29,8 @@ export async function activate(context: vscode.ExtensionContext) {
             vscode.workspace.workspaceFolders.length > 0
             ? vscode.workspace.workspaceFolders[0].uri.fsPath
             : ""; // : undefined; // TODO
+
+    outputChannel.info(`Workspace root path: ${rootPath}`);
     const actionsProvider = new FineCodeActionsProvider(rootPath);
 
 
@@ -50,7 +56,7 @@ export async function activate(context: vscode.ExtensionContext) {
             return Promise.resolve([]);
         },
         resolveTask(_task: vscode.Task): vscode.Task | undefined {
-            console.log("resolve", _task);
+            outputChannel.debug("resolve task", _task);
             return _task;
             // const task = _task.definition.task;
             // if (task) {
@@ -68,15 +74,14 @@ export async function activate(context: vscode.ExtensionContext) {
         },
     };
 
-    // default output channel causes multiple loggers on restart of language server. Use own one
-    // to avoid this problem
-    const outputChannel = createOutputChannel("Finecode LSP Server");
+    outputChannel.info('Starting workspace manager...');
     await runWorkspaceManager(outputChannel, actionsProvider);
 
+    outputChannel.info('Registering commands and providers...');
     context.subscriptions.push(
         vscode.window.registerTreeDataProvider("fineCodeActions", actionsProvider),
         vscode.commands.registerCommand('finecode.restartWorkspaceManager', async () => {
-            console.log('Restarting workspace manager');
+            outputChannel.info('Restarting workspace manager');
             stopWorkspaceManager();
             runWorkspaceManager(outputChannel, actionsProvider);
         }),
@@ -133,6 +138,8 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         })
     );
+
+    outputChannel.info('=== Finecode extension activation complete ===');
 }
 
 export async function deactivate() {
@@ -141,9 +148,11 @@ export async function deactivate() {
 
 const runWorkspaceManager = async (outputChannel: vscode.LogOutputChannel, actionsProvider: FineCodeActionsProvider) => {
     if (!vscode.workspace.workspaceFolders) {
-        console.log("No workspace folders, add one and restart extension. Autoreload is not supported yet");
+        outputChannel.error("No workspace folders found. Please open a workspace folder and restart the extension.");
         return;
     }
+
+    outputChannel.info(`Found ${vscode.workspace.workspaceFolders.length} workspace folder(s)`);
 
     let devWorkspacePythonPath: string | undefined = undefined;
     let wsDir: string | undefined = undefined;
@@ -151,14 +160,19 @@ const runWorkspaceManager = async (outputChannel: vscode.LogOutputChannel, actio
     for (const folder of vscode.workspace.workspaceFolders) {
         const dirPath = folder.uri.path;
         devWorkspacePythonPath = dirPath + '/.venvs/dev_workspace/bin/python';
+        outputChannel.info(`Checking for Python at: ${devWorkspacePythonPath}`);
         if (fs.existsSync(devWorkspacePythonPath)) {
+            outputChannel.info(`Found dev_workspace Python at: ${devWorkspacePythonPath}`);
             finecodeFound = true;
+        } else {
+            outputChannel.warn(`Python not found at: ${devWorkspacePythonPath}`);
         }
         break;
     }
 
     if (!finecodeFound) {
-        console.log('No dev_workspace found in workspace folders. Add one and restart the extension.  Autoreload is not supported yet');
+        outputChannel.error('No dev_workspace found in workspace folders. Expected path: .venvs/dev_workspace/bin/python');
+        outputChannel.error('Please create the virtual environment and restart the extension.');
         return;
     }
 
@@ -181,6 +195,9 @@ const runWorkspaceManager = async (outputChannel: vscode.LogOutputChannel, actio
         transport: TransportKind.stdio
     };
 
+    outputChannel.info(`Starting language server with command: ${finecodeCmdSplit[0]}`);
+    outputChannel.info(`Args: ${JSON.stringify([...finecodeCmdSplit.slice(1), '-m', 'finecode.cli', ...wmArgs])}`);
+
     // Options to control the language client
     const clientOptions: LanguageClientOptions = {
         // TODO: dynamic or for all?
@@ -200,7 +217,14 @@ const runWorkspaceManager = async (outputChannel: vscode.LogOutputChannel, actio
     // Start the client. This will also launch the server
     // waiting on start server is required, otherwise we will get empty response on first request
     // like action list
-    await lsClient.start();
+    outputChannel.info('Starting language client...');
+    try {
+        await lsClient.start();
+        outputChannel.info('Language server started successfully!');
+    } catch (error) {
+        outputChannel.error(`Failed to start language server: ${error}`);
+        throw error;
+    }
 
     lsClient.onRequest('editor/documentMeta', () => {
         console.log('editor/documentMeta request');

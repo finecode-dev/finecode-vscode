@@ -5,7 +5,7 @@
   "engines": {
     "vscode": "^1.105.0"
   },
-  "version": "0.2.1",
+  "version": "0.3.0",
   "preview": true,
   "serverInfo": {
     "name": "FineCode",
@@ -30,11 +30,10 @@
     "Linters",
     "Formatters"
   ],
-  "activationEvents": [
-    "onLanguage:python",
-    "workspaceContains:*.py"
-  ],
   "main": "./dist/extension.js",
+  "extensionKind": [
+    "workspace"
+  ],
   "contributes": {
     "configuration": {
       "properties": {
