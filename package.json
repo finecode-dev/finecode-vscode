@@ -54,6 +54,19 @@
           ],
           "scope": "machine",
           "type": "string"
+        },
+        "finecode.logLevel": {
+          "default": "INFO",
+          "description": "Log level for the FineCode LSP server and Workspace Manager server.",
+          "enum": [
+            "TRACE",
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR"
+          ],
+          "scope": "machine",
+          "type": "string"
         }
       }
     },

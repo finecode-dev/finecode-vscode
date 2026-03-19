@@ -8,6 +8,7 @@ FineCode for VS Code connects VS Code to your FineCode workspace so diagnostics,
 - Code formatting
 - Code actions / quick fixes from FineCode handlers
 - FineCode action explorer in the Activity Bar
+- Native VS Code Test Explorer integration (discover and run tests via the Testing panel)
 
 ## Requirements
 
@@ -57,6 +58,33 @@ Controls when extension notifications are shown:
 - `onError`
 - `onWarning`
 - `always`
+
+### `finecode.logLevel`
+
+Log level for the FineCode LSP server and Workspace Manager server:
+
+- `TRACE`
+- `DEBUG`
+- `INFO` (default)
+- `WARNING`
+- `ERROR`
+
+## Testing
+
+The extension integrates with VS Code's native Testing panel (the beaker icon in the Activity Bar).
+
+### Setup
+
+See the FineCode docs for the current testing integration setup steps:
+
+- <https://finecode-dev.github.io/getting-started-ide-mcp/#testing-integration>
+
+### Usage
+
+- Open the **Testing** panel — tests are discovered automatically when the workspace loads.
+- Click **Run** next to any test, class, or file to run that scope.
+- Failed tests show inline error messages with file and line location.
+- The test tree mirrors your project structure: file → class → function.
 
 ## Troubleshooting
 

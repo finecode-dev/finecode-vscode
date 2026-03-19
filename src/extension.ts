@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import { FineCodeActionsProvider, ActionTreeNode, FinecodeGetActionsResponse } from "./action-tree-provider";
 import { createOutputChannel } from './logging';
 import * as lsProtocol from "vscode-languageserver-protocol";
+import { createTestController } from "./test-controller";
 
 
 let lsClient: LanguageClient | undefined;
@@ -77,12 +78,14 @@ export async function activate(context: vscode.ExtensionContext) {
     outputChannel.info('Starting workspace manager...');
     await runWorkspaceManager(outputChannel, actionsProvider);
 
+    createTestController(context, getLSClient);
+
     outputChannel.info('Registering commands and providers...');
     context.subscriptions.push(
         vscode.window.registerTreeDataProvider("fineCodeActions", actionsProvider),
         vscode.commands.registerCommand('finecode.restartWorkspaceManager', async () => {
             outputChannel.info('Restarting workspace manager');
-            stopWorkspaceManager();
+            await stopWorkspaceManager();
             runWorkspaceManager(outputChannel, actionsProvider);
         }),
         vscode.commands.registerCommand("finecode.refreshActions", () =>
@@ -143,7 +146,7 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 export async function deactivate() {
-    await stopWorkspaceManager();
+    await disconnectFromWorkspaceManager();
 }
 
 const runWorkspaceManager = async (outputChannel: vscode.LogOutputChannel, actionsProvider: FineCodeActionsProvider) => {
@@ -177,20 +180,14 @@ const runWorkspaceManager = async (outputChannel: vscode.LogOutputChannel, actio
     }
 
     const finecodeCmdSplit = (devWorkspacePythonPath as string).split(' ');
-    const wmArgs = ['start-api', '--trace'];
+    const logLevel = vscode.workspace.getConfiguration('finecode').get<string>('logLevel', 'INFO');
+    const wmArgs = ['start-lsp', `--log-level=${logLevel}`];
     if (process.env.FINECODE_DEBUG) {
         wmArgs.push('--debug');
     }
     const serverOptions: ServerOptions = {
         command: finecodeCmdSplit[0],
         args: [...finecodeCmdSplit.slice(1), '-m', 'finecode.cli', ...wmArgs],
-        // detach from IDE to provide enough time after shutdown to gracefully exit
-        // and avoid not stopped running processes. Workspace Manager is responsible to
-        // exit the process as soon in possible after shutdown signal in any case.
-        //
-        // detached doesn't work as expected:
-        // https://github.com/microsoft/vscode-languageserver-node/issues/1595
-        // temporary detach extension runners instead of workspace manager
         options: { cwd: wsDir, detached: false, shell: false },
         transport: TransportKind.stdio
     };
@@ -262,8 +259,20 @@ const runWorkspaceManager = async (outputChannel: vscode.LogOutputChannel, actio
 };
 
 
+const disconnectFromWorkspaceManager = async () => {
+    if (lsClient) {
+        await lsClient.stop();
+        lsClient = undefined;
+    }
+};
+
 const stopWorkspaceManager = async () => {
     if (lsClient) {
+        try {
+            await lsClient.sendRequest('server/shutdown', {});
+        } catch (error) {
+            console.log('Error sending shutdown request to language server:', error);
+        }
         await lsClient.stop();
         lsClient = undefined;
     }
