@@ -126,9 +126,12 @@ export async function activate(context: vscode.ExtensionContext) {
             const items = actions.nodes.map(node => ({ label: node.name, command: node.nodeId }))
             const selectedItem = await vscode.window.showQuickPick(items);
             if (selectedItem !== undefined) {
+                const nodeIdParts = selectedItem.command.split("::");
+                const projectPath = nodeIdParts[0];
+                const actionName = nodeIdParts[1];
                 const runRequestParams: lsProtocol.ExecuteCommandParams = {
                     command: 'finecode.runAction',
-                    arguments: [editor.selection.active]
+                    arguments: [{ action: actionName, project: projectPath }]
                 };
 
                 console.log('selected, run', selectedItem);

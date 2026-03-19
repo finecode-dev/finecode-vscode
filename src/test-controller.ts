@@ -12,8 +12,8 @@ import * as lsProtocol from "vscode-languageserver-protocol";
 // ── Wire types ────────────────────────────────────────────────────────────────────
 
 type Project = {
-    name: string;   // short directory name — used as project identifier in runAction
-    path: string;   // absolute path — used to group test files back to their project
+    name: string;   // short directory name
+    path: string;   // absolute path — used as project identifier in runAction and to group test files
     status: string;
 };
 
@@ -209,7 +209,7 @@ async function runTests(
                 try {
                     response = await client.sendRequest(lsProtocol.ExecuteCommandRequest.method, {
                         command: "finecode.runAction",
-                        arguments: [{ action: "run_tests", project: project.name, params: { test_ids: testIds } }],
+                        arguments: [{ action: "run_tests", project: project.path, params: { test_ids: testIds } }],
                     });
                 } catch (err) {
                     for (const item of projectLeaves) {
