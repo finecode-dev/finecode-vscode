@@ -3,9 +3,11 @@ import {
     LanguageClient,
     LanguageClientOptions,
     ServerOptions,
-    TransportKind,
+    StreamInfo,
 } from "vscode-languageclient/node";
 import fs from 'node:fs';
+import * as net from 'node:net';
+import { spawn } from 'node:child_process';
 import { FineCodeActionsProvider, ActionTreeNode, FinecodeGetActionsResponse } from "./action-tree-provider";
 import { createOutputChannel } from './logging';
 import * as lsProtocol from "vscode-languageserver-protocol";
@@ -13,6 +15,7 @@ import { createTestController } from "./test-controller";
 
 
 let lsClient: LanguageClient | undefined;
+let lsProcess: ReturnType<typeof spawn> | undefined;
 
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -184,16 +187,42 @@ const runWorkspaceManager = async (outputChannel: vscode.LogOutputChannel, actio
 
     const finecodeCmdSplit = (devWorkspacePythonPath as string).split(' ');
     const logLevel = vscode.workspace.getConfiguration('finecode').get<string>('logLevel', 'INFO');
-    const wmArgs = ['start-lsp', `--log-level=${logLevel}`];
+    const wmArgs = ['start-lsp', `--log-level=${logLevel}`, '--tcp'];
     if (process.env.FINECODE_DEBUG) {
         wmArgs.push('--debug');
     }
-    const serverOptions: ServerOptions = {
-        command: finecodeCmdSplit[0],
-        args: [...finecodeCmdSplit.slice(1), '-m', 'finecode.cli', ...wmArgs],
-        options: { cwd: wsDir, detached: false, shell: false },
-        transport: TransportKind.stdio
-    };
+    const serverOptions: ServerOptions = () => new Promise<StreamInfo>((resolve, reject) => {
+        const proc = spawn(
+            finecodeCmdSplit[0],
+            [...finecodeCmdSplit.slice(1), '-m', 'finecode.cli', ...wmArgs],
+            { cwd: wsDir, detached: false, shell: false }
+        );
+        lsProcess = proc;
+
+        let buf = '';
+        let resolved = false;
+
+        proc.stdout!.on('data', (chunk: Buffer) => {
+            buf += chunk.toString();
+            const match = buf.match(/port:(\d+)/);
+            if (match && !resolved) {
+                resolved = true;
+                const port = parseInt(match[1], 10);
+                outputChannel.info(`Connecting to LSP server on port ${port}`);
+                const socket = net.connect({ port, host: '127.0.0.1' });
+                socket.on('connect', () => resolve({ reader: socket, writer: socket }));
+                socket.on('error', reject);
+            }
+        });
+
+        proc.stderr!.on('data', (d: Buffer) => outputChannel.append(d.toString()));
+        proc.on('error', reject);
+        proc.on('exit', (code) => {
+            if (!resolved) {
+                reject(new Error(`LSP server exited (${code}) before sending port`));
+            }
+        });
+    });
 
     outputChannel.info(`Starting language server with command: ${finecodeCmdSplit[0]}`);
     outputChannel.info(`Args: ${JSON.stringify([...finecodeCmdSplit.slice(1), '-m', 'finecode.cli', ...wmArgs])}`);
@@ -267,6 +296,8 @@ const disconnectFromWorkspaceManager = async () => {
         await lsClient.stop();
         lsClient = undefined;
     }
+    lsProcess?.kill();
+    lsProcess = undefined;
 };
 
 const stopWorkspaceManager = async () => {
@@ -279,6 +310,8 @@ const stopWorkspaceManager = async () => {
         await lsClient.stop();
         lsClient = undefined;
     }
+    lsProcess?.kill();
+    lsProcess = undefined;
 };
 
 
