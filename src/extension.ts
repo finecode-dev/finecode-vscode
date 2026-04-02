@@ -16,6 +16,61 @@ import { createTestController } from "./test-controller";
 
 let lsClient: LanguageClient | undefined;
 let lsProcess: ReturnType<typeof spawn> | undefined;
+const FINECODE_MCP_PROVIDER_ID = 'finecode';
+
+function createFineCodeMcpServerDefinitionProvider(rootPath: string, outputChannel: vscode.LogOutputChannel): {
+    provider: vscode.McpServerDefinitionProvider<vscode.McpStdioServerDefinition>;
+    disposable: vscode.Disposable;
+} {
+    const onDidChangeMcpServerDefinitionsEmitter = new vscode.EventEmitter<void>();
+    const workspaceFoldersChangeDisposable = vscode.workspace.onDidChangeWorkspaceFolders(() => {
+        outputChannel.info('Workspace folders changed, refreshing FineCode MCP server definitions');
+        onDidChangeMcpServerDefinitionsEmitter.fire();
+    });
+
+    const provider: vscode.McpServerDefinitionProvider<vscode.McpStdioServerDefinition> = {
+        onDidChangeMcpServerDefinitions: onDidChangeMcpServerDefinitionsEmitter.event,
+        provideMcpServerDefinitions: () => {
+            if (!rootPath) {
+                outputChannel.warn('FineCode MCP provider: no workspace root available');
+                return [];
+            }
+
+            const pythonPath = rootPath + '/.venvs/dev_workspace/bin/python';
+            if (!fs.existsSync(pythonPath)) {
+                outputChannel.warn(`FineCode MCP provider: no dev_workspace python in ${rootPath}`);
+                return [];
+            }
+
+            const serverDefinitions = [
+                new vscode.McpStdioServerDefinition(
+                    'FineCode',
+                    pythonPath,
+                    ['-m', 'finecode', 'start-mcp', `--workdir=${rootPath}`],
+                ),
+            ];
+
+            outputChannel.debug(`Providing FineCode MCP server definition for root workspace: ${rootPath}`);
+
+            return serverDefinitions;
+        },
+        resolveMcpServerDefinition: (serverDefinition) => {
+            return serverDefinition;
+        },
+    };
+
+    const disposable = {
+        dispose: () => {
+            workspaceFoldersChangeDisposable.dispose();
+            onDidChangeMcpServerDefinitionsEmitter.dispose();
+        },
+    };
+
+    return {
+        provider,
+        disposable,
+    };
+}
 
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -36,6 +91,13 @@ export async function activate(context: vscode.ExtensionContext) {
 
     outputChannel.info(`Workspace root path: ${rootPath}`);
     const actionsProvider = new FineCodeActionsProvider(rootPath);
+
+    const { provider: mcpServerDefinitionProvider, disposable: mcpProviderDisposable } = createFineCodeMcpServerDefinitionProvider(rootPath, outputChannel);
+    const mcpProviderRegistration = vscode.lm.registerMcpServerDefinitionProvider(
+        FINECODE_MCP_PROVIDER_ID,
+        mcpServerDefinitionProvider,
+    );
+    outputChannel.info('Registered FineCode MCP server definition provider');
 
 
     // task provider:
@@ -86,6 +148,8 @@ export async function activate(context: vscode.ExtensionContext) {
     outputChannel.info('Registering commands and providers...');
     context.subscriptions.push(
         vscode.window.registerTreeDataProvider("fineCodeActions", actionsProvider),
+        mcpProviderRegistration,
+        mcpProviderDisposable,
         vscode.commands.registerCommand('finecode.restartWorkspaceManager', async () => {
             outputChannel.info('Restarting workspace manager');
             await stopWorkspaceManager();
@@ -168,6 +232,7 @@ const runWorkspaceManager = async (outputChannel: vscode.LogOutputChannel, actio
     let finecodeFound = false;
     for (const folder of vscode.workspace.workspaceFolders) {
         const dirPath = folder.uri.path;
+        wsDir = dirPath;
         devWorkspacePythonPath = dirPath + '/.venvs/dev_workspace/bin/python';
         outputChannel.info(`Checking for Python at: ${devWorkspacePythonPath}`);
         if (fs.existsSync(devWorkspacePythonPath)) {

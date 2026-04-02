@@ -3,9 +3,9 @@
   "displayName": "FineCode",
   "description": "",
   "engines": {
-    "vscode": "^1.105.0"
+    "vscode": "^1.109.0"
   },
-  "version": "0.3.1",
+  "version": "0.3.2",
   "preview": true,
   "serverInfo": {
     "name": "FineCode",
@@ -199,6 +199,12 @@
           }
         }
       }
+    ],
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "finecode",
+        "label": "FineCode MCP Server"
+      }
     ]
   },
   "scripts": {
@@ -220,7 +226,7 @@
   "devDependencies": {
     "@types/mocha": "^10.0.10",
     "@types/node": "^22.15.18",
-    "@types/vscode": "^1.105.0",
+    "@types/vscode": "^1.109.0",
     "@typescript-eslint/eslint-plugin": "^8.32.1",
     "@typescript-eslint/parser": "^8.32.1",
     "@vscode/test-cli": "^0.0.10",
