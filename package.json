@@ -5,7 +5,7 @@
   "engines": {
     "vscode": "^1.109.0"
   },
-  "version": "0.3.2",
+  "version": "0.3.3",
   "preview": true,
   "serverInfo": {
     "name": "FineCode",

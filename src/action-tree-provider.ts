@@ -120,21 +120,19 @@ export class FineCodeActionsProvider
                     .sendRequest(lsProtocol.ExecuteCommandRequest.method, requestParams)
                     .then((response) => {
                         console.log('resp', response);
-                        // TODO: investigate why this occurs: we get empty object at start
-                        if (Object.keys(<FinecodeGetActionsResponse>response).length > 0) {
-                            this.actions = <FinecodeGetActionsResponse>response;
-                            // this.loaded = true;
+                        this.actions = response as FinecodeGetActionsResponse;
 
-                            const saveActionsById = (actions: ActionTreeNode[]): void => {
-                                for (const action of actions) {
-                                    this.actionById[action.nodeId] = action;
-                                    saveActionsById(action.subnodes);
-                                }
-                            };
-                            saveActionsById(this.actions.nodes);
-                        } else {
+                        const saveActionsById = (actions: ActionTreeNode[]): void => {
+                            for (const action of actions) {
+                                this.actionById[action.nodeId] = action;
+                                saveActionsById(action.subnodes);
+                            }
+                        };
+                        saveActionsById(this.actions.nodes);
+
+                        if (this.actions.nodes.length === 0) {
+                            // TODO: investigate why this occurs: we get empty object at start
                             this.actions = { nodes: [] };
-                            // this.loaded = false;
                         }
                         resolve();
                     })
