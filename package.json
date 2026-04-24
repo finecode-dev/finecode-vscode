@@ -5,8 +5,8 @@
   "engines": {
     "vscode": "^1.109.0"
   },
-  "version": "0.3.3",
-  "preview": true,
+  "version": "0.4.0",
+  "preview": false,
   "serverInfo": {
     "name": "FineCode",
     "module": "finecode"
@@ -229,9 +229,9 @@
     "@types/vscode": "^1.109.0",
     "@typescript-eslint/eslint-plugin": "^8.32.1",
     "@typescript-eslint/parser": "^8.32.1",
-    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
-    "@vscode/vsce": "^3.7.1",
+    "@vscode/vsce": "^3.9.0",
     "esbuild": "^0.27.2",
     "esbuild-plugin-copy": "^2.1.1",
     "eslint": "^8.57.0",
