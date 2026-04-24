@@ -12,7 +12,7 @@ FineCode for VS Code connects VS Code to your FineCode workspace so diagnostics,
 
 ## Requirements
 
-- VS Code `1.105+`
+- VS Code `1.109+`
 - A workspace with FineCode already set up
 
 For FineCode installation, presets, and environment preparation, use the official docs:
