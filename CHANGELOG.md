@@ -6,6 +6,21 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-04-25
+
+### Added
+
+- Added an extension icon for the VS Code Marketplace and extension UI.
+
+### Changed
+
+- Improved the README with clearer setup and usage guidance.
+
+### Fixed
+
+- Added Windows support for locating FineCode in the workspace `dev_workspace` virtual environment.
+
+
 ## [0.4.0] - 2026-04-24
 
 ### Added

@@ -6,6 +6,7 @@ import {
     StreamInfo,
 } from "vscode-languageclient/node";
 import fs from 'node:fs';
+import * as path from 'node:path';
 import * as net from 'node:net';
 import { spawn } from 'node:child_process';
 import { FineCodeActionsProvider, ActionTreeNode, FinecodeGetActionsResponse } from "./action-tree-provider";
@@ -17,6 +18,15 @@ import { createTestController } from "./test-controller";
 let lsClient: LanguageClient | undefined;
 let lsProcess: ReturnType<typeof spawn> | undefined;
 const FINECODE_MCP_PROVIDER_ID = 'finecode';
+const DEV_WORKSPACE_PYTHON_DISPLAY_PATH = '.venvs/dev_workspace/bin/python (Linux/macOS) or .venvs\\dev_workspace\\Scripts\\python.exe (Windows)';
+
+function getDevWorkspacePythonPath(workspacePath: string): string {
+    if (process.platform === 'win32') {
+        return path.join(workspacePath, '.venvs', 'dev_workspace', 'Scripts', 'python.exe');
+    }
+
+    return path.join(workspacePath, '.venvs', 'dev_workspace', 'bin', 'python');
+}
 
 function createFineCodeMcpServerDefinitionProvider(rootPath: string, outputChannel: vscode.LogOutputChannel): {
     provider: vscode.McpServerDefinitionProvider<vscode.McpStdioServerDefinition>;
@@ -36,9 +46,9 @@ function createFineCodeMcpServerDefinitionProvider(rootPath: string, outputChann
                 return [];
             }
 
-            const pythonPath = rootPath + '/.venvs/dev_workspace/bin/python';
+            const pythonPath = getDevWorkspacePythonPath(rootPath);
             if (!fs.existsSync(pythonPath)) {
-                outputChannel.warn(`FineCode MCP provider: no dev_workspace python in ${rootPath}`);
+                outputChannel.warn(`FineCode MCP provider: no dev_workspace python in ${rootPath}. Expected path: ${DEV_WORKSPACE_PYTHON_DISPLAY_PATH}`);
                 return [];
             }
 
@@ -231,9 +241,9 @@ const runWorkspaceManager = async (outputChannel: vscode.LogOutputChannel, actio
     let wsDir: string | undefined = undefined;
     let finecodeFound = false;
     for (const folder of vscode.workspace.workspaceFolders) {
-        const dirPath = folder.uri.path;
+        const dirPath = folder.uri.fsPath;
         wsDir = dirPath;
-        devWorkspacePythonPath = dirPath + '/.venvs/dev_workspace/bin/python';
+        devWorkspacePythonPath = getDevWorkspacePythonPath(dirPath);
         outputChannel.info(`Checking for Python at: ${devWorkspacePythonPath}`);
         if (fs.existsSync(devWorkspacePythonPath)) {
             outputChannel.info(`Found dev_workspace Python at: ${devWorkspacePythonPath}`);
@@ -245,7 +255,7 @@ const runWorkspaceManager = async (outputChannel: vscode.LogOutputChannel, actio
     }
 
     if (!finecodeFound) {
-        outputChannel.error('No dev_workspace found in workspace folders. Expected path: .venvs/dev_workspace/bin/python');
+        outputChannel.error(`No dev_workspace found in workspace folders. Expected path: ${DEV_WORKSPACE_PYTHON_DISPLAY_PATH}`);
         outputChannel.error('Please create the virtual environment and restart the extension.');
         return;
     }

@@ -5,7 +5,7 @@
   "engines": {
     "vscode": "^1.109.0"
   },
-  "version": "0.4.0",
+  "version": "0.4.1",
   "preview": false,
   "serverInfo": {
     "name": "FineCode",
@@ -21,8 +21,9 @@
   "bugs": {
     "url": "https://github.com/finecode-dev/finecode-vscode/issues"
   },
+  "icon": "media/extension-icon.png",
   "galleryBanner": {
-    "color": "#1e415e",
+    "color": "#1c4e77",
     "theme": "dark"
   },
   "categories": [

@@ -2,6 +2,10 @@
 
 FineCode for VS Code connects VS Code to your FineCode workspace so diagnostics, code actions, and action execution come from the same FineCode configuration you use in CLI/CI.
 
+Install from the Visual Studio Marketplace:
+
+- <https://marketplace.visualstudio.com/items?itemName=VladyslavHnatiuk.finecode-vscode>
+
 ## What This Extension Provides
 
 - Diagnostics from FineCode LSP
@@ -23,6 +27,7 @@ For FineCode installation, presets, and environment preparation, use the officia
 The extension expects FineCode in:
 
 - `.venvs/dev_workspace/bin/python` (Linux/macOS)
+- `.venvs\dev_workspace\Scripts\python.exe` (Windows)
 
 ## Quick Start
 
@@ -34,10 +39,16 @@ The extension expects FineCode in:
 
 ## How It Works
 
-On activation, the extension locates `.venvs/dev_workspace/bin/python` in the workspace and starts:
+On activation, the extension locates the `dev_workspace` Python in the workspace and starts FineCode LSP:
 
 ```bash
 <workspace>/.venvs/dev_workspace/bin/python -m finecode.cli start-lsp --trace
+```
+
+On Windows, the equivalent path is:
+
+```powershell
+<workspace>\.venvs\dev_workspace\Scripts\python.exe -m finecode.cli start-lsp --trace
 ```
 
 FineCode behavior is controlled by your FineCode config (`pyproject.toml`, presets, env vars, CLI overrides), not by per-project VS Code extension config.
@@ -94,6 +105,10 @@ If you see logs about missing `dev_workspace`, verify:
 
 ```bash
 ls .venvs/dev_workspace/bin/python
+```
+
+```powershell
+dir .venvs\dev_workspace\Scripts\python.exe
 ```
 
 If missing, complete FineCode setup from:
