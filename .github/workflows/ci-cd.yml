@@ -18,9 +18,9 @@ jobs:
         node-version: [22.x]
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v5
+      uses: actions/setup-node@v6
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
@@ -31,7 +31,7 @@ jobs:
     - run: npm run vscode:publish -- --pat="${{ secrets.AZURE_ACCESS_TOKEN }}"
       if: github.event_name == 'release' && github.event.action == 'created'
 
-    - uses: actions/upload-artifact@v5
+    - uses: actions/upload-artifact@v7
       with:
         path: "*.vsix"
         if-no-files-found: error
