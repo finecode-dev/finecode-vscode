@@ -304,8 +304,7 @@ const runWorkspaceManager = async (outputChannel: vscode.LogOutputChannel, actio
 
     // Options to control the language client
     const clientOptions: LanguageClientOptions = {
-        // TODO: dynamic or for all?
-        documentSelector: [{ scheme: "file", language: "python" }],
+        documentSelector: [{ scheme: "file", language: "*" }],
         outputChannel: outputChannel,
         traceOutputChannel: outputChannel,
     };

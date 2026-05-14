@@ -5,7 +5,7 @@
   "engines": {
     "vscode": "^1.109.0"
   },
-  "version": "0.4.1",
+  "version": "0.5.1",
   "preview": false,
   "serverInfo": {
     "name": "FineCode",
@@ -34,6 +34,9 @@
   "main": "./dist/extension.js",
   "extensionKind": [
     "workspace"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
   ],
   "contributes": {
     "configuration": {
