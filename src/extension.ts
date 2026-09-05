@@ -15,10 +15,16 @@ import * as lsProtocol from "vscode-languageserver-protocol";
 import { createTestController } from "./test-controller";
 
 
-let lsClient: LanguageClient | undefined;
-let lsProcess: ReturnType<typeof spawn> | undefined;
+const lsClientsByFolder = new Map<string, LanguageClient>();
+const lsProcessesByFolder = new Map<string, ReturnType<typeof spawn>>();
+// Tracks folders currently being started to prevent duplicate concurrent startups.
+const lsFoldersStarting = new Set<string>();
 const FINECODE_MCP_PROVIDER_ID = 'finecode';
 const DEV_WORKSPACE_PYTHON_DISPLAY_PATH = '.venvs/dev_workspace/bin/python (Linux/macOS) or .venvs\\dev_workspace\\Scripts\\python.exe (Windows)';
+
+function getWorkspaceMode(): 'per-folder' | 'single' {
+    return vscode.workspace.getConfiguration('finecode').get<'per-folder' | 'single'>('workspaceMode', 'per-folder');
+}
 
 function getDevWorkspacePythonPath(workspacePath: string): string {
     if (process.platform === 'win32') {
@@ -28,7 +34,21 @@ function getDevWorkspacePythonPath(workspacePath: string): string {
     return path.join(workspacePath, '.venvs', 'dev_workspace', 'bin', 'python');
 }
 
-function createFineCodeMcpServerDefinitionProvider(rootPath: string, outputChannel: vscode.LogOutputChannel): {
+function getClientForActiveEditor(): LanguageClient | undefined {
+    const activeEditor = vscode.window.activeTextEditor;
+    if (activeEditor) {
+        const folder = vscode.workspace.getWorkspaceFolder(activeEditor.document.uri);
+        if (folder) {
+            const client = lsClientsByFolder.get(folder.uri.fsPath);
+            if (client) { return client; }
+        }
+    }
+    // Fall back to first available client
+    const first = lsClientsByFolder.values().next();
+    return first.done ? undefined : first.value;
+}
+
+function createFineCodeMcpServerDefinitionProvider(outputChannel: vscode.LogOutputChannel): {
     provider: vscode.McpServerDefinitionProvider<vscode.McpStdioServerDefinition>;
     disposable: vscode.Disposable;
 } {
@@ -41,28 +61,32 @@ function createFineCodeMcpServerDefinitionProvider(rootPath: string, outputChann
     const provider: vscode.McpServerDefinitionProvider<vscode.McpStdioServerDefinition> = {
         onDidChangeMcpServerDefinitions: onDidChangeMcpServerDefinitionsEmitter.event,
         provideMcpServerDefinitions: () => {
-            if (!rootPath) {
-                outputChannel.warn('FineCode MCP provider: no workspace root available');
+            // Always start a single MCP server from the first workspace folder.
+            // In per-folder mode, tools accept a required 'workspace_root' parameter
+            // that the MCP server uses to route requests to the correct WM instance.
+            // Tools available are those declared in the main worktree (known limitation).
+            const folders = vscode.workspace.workspaceFolders;
+            if (!folders || folders.length === 0) {
+                outputChannel.warn('FineCode MCP provider: no workspace folders available');
                 return [];
             }
 
+            const rootPath = folders[0].uri.fsPath;
             const pythonPath = getDevWorkspacePythonPath(rootPath);
             if (!fs.existsSync(pythonPath)) {
                 outputChannel.warn(`FineCode MCP provider: no dev_workspace python in ${rootPath}. Expected path: ${DEV_WORKSPACE_PYTHON_DISPLAY_PATH}`);
                 return [];
             }
 
-            const serverDefinitions = [
+            outputChannel.debug(`Providing FineCode MCP server definition for root workspace: ${rootPath}`);
+
+            return [
                 new vscode.McpStdioServerDefinition(
                     'FineCode',
                     pythonPath,
                     ['-m', 'finecode', 'start-mcp', `--workdir=${rootPath}`],
                 ),
             ];
-
-            outputChannel.debug(`Providing FineCode MCP server definition for root workspace: ${rootPath}`);
-
-            return serverDefinitions;
         },
         resolveMcpServerDefinition: (serverDefinition) => {
             return serverDefinition;
@@ -102,7 +126,7 @@ export async function activate(context: vscode.ExtensionContext) {
     outputChannel.info(`Workspace root path: ${rootPath}`);
     const actionsProvider = new FineCodeActionsProvider(rootPath);
 
-    const { provider: mcpServerDefinitionProvider, disposable: mcpProviderDisposable } = createFineCodeMcpServerDefinitionProvider(rootPath, outputChannel);
+    const { provider: mcpServerDefinitionProvider, disposable: mcpProviderDisposable } = createFineCodeMcpServerDefinitionProvider(outputChannel);
     const mcpProviderRegistration = vscode.lm.registerMcpServerDefinitionProvider(
         FINECODE_MCP_PROVIDER_ID,
         mcpServerDefinitionProvider,
@@ -160,6 +184,14 @@ export async function activate(context: vscode.ExtensionContext) {
         vscode.window.registerTreeDataProvider("fineCodeActions", actionsProvider),
         mcpProviderRegistration,
         mcpProviderDisposable,
+        // In per-folder mode: lazily start the WM for a folder when its first file is opened.
+        // Registered once here (not inside runWorkspaceManager) so restart doesn't double-register.
+        vscode.window.onDidChangeActiveTextEditor(async (editor) => {
+            if (!editor || getWorkspaceMode() !== 'per-folder') { return; }
+            const folder = vscode.workspace.getWorkspaceFolder(editor.document.uri);
+            if (!folder) { return; }
+            await ensureFolderWorkspaceManager(folder.uri.fsPath, outputChannel, actionsProvider);
+        }),
         vscode.commands.registerCommand('finecode.restartWorkspaceManager', async () => {
             outputChannel.info('Restarting workspace manager');
             await stopWorkspaceManager();
@@ -171,7 +203,8 @@ export async function activate(context: vscode.ExtensionContext) {
         vscode.tasks.registerTaskProvider("finecode", taskProviderConfig),
         outputChannel,
         vscode.commands.registerCommand("finecode.showEditorActions", async () => {
-            if (lsClient === undefined) {
+            const client = getClientForActiveEditor();
+            if (client === undefined) {
                 console.error("LS Client is not initialized");
                 return;
             }
@@ -195,7 +228,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
             let actions: FinecodeGetActionsResponse;
             try {
-                actions = await lsClient.sendRequest(lsProtocol.ExecuteCommandRequest.method, requestParams);
+                actions = await client.sendRequest(lsProtocol.ExecuteCommandRequest.method, requestParams);
             } catch (err) {
                 // TODO: show error
                 return;
@@ -213,7 +246,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
                 console.log('selected, run', selectedItem);
                 try {
-                    await lsClient.sendRequest(lsProtocol.ExecuteCommandRequest.method, runRequestParams);
+                    await client.sendRequest(lsProtocol.ExecuteCommandRequest.method, runRequestParams);
                 } catch (err) {
                     // TODO: show error
                     return;
@@ -229,38 +262,21 @@ export async function deactivate() {
     await disconnectFromWorkspaceManager();
 }
 
-const runWorkspaceManager = async (outputChannel: vscode.LogOutputChannel, actionsProvider: FineCodeActionsProvider) => {
-    if (!vscode.workspace.workspaceFolders) {
-        outputChannel.error("No workspace folders found. Please open a workspace folder and restart the extension.");
+const startFolderWorkspaceManager = async (
+    folderPath: string,
+    outputChannel: vscode.LogOutputChannel,
+    actionsProvider: FineCodeActionsProvider,
+): Promise<void> => {
+    const devWorkspacePythonPath = getDevWorkspacePythonPath(folderPath);
+    outputChannel.info(`Checking for Python at: ${devWorkspacePythonPath}`);
+    if (!fs.existsSync(devWorkspacePythonPath)) {
+        outputChannel.warn(`Python not found at: ${devWorkspacePythonPath}. Expected: ${DEV_WORKSPACE_PYTHON_DISPLAY_PATH}`);
         return;
     }
 
-    outputChannel.info(`Found ${vscode.workspace.workspaceFolders.length} workspace folder(s)`);
+    outputChannel.info(`Found dev_workspace Python at: ${devWorkspacePythonPath}`);
 
-    let devWorkspacePythonPath: string | undefined = undefined;
-    let wsDir: string | undefined = undefined;
-    let finecodeFound = false;
-    for (const folder of vscode.workspace.workspaceFolders) {
-        const dirPath = folder.uri.fsPath;
-        wsDir = dirPath;
-        devWorkspacePythonPath = getDevWorkspacePythonPath(dirPath);
-        outputChannel.info(`Checking for Python at: ${devWorkspacePythonPath}`);
-        if (fs.existsSync(devWorkspacePythonPath)) {
-            outputChannel.info(`Found dev_workspace Python at: ${devWorkspacePythonPath}`);
-            finecodeFound = true;
-        } else {
-            outputChannel.warn(`Python not found at: ${devWorkspacePythonPath}`);
-        }
-        break;
-    }
-
-    if (!finecodeFound) {
-        outputChannel.error(`No dev_workspace found in workspace folders. Expected path: ${DEV_WORKSPACE_PYTHON_DISPLAY_PATH}`);
-        outputChannel.error('Please create the virtual environment and restart the extension.');
-        return;
-    }
-
-    const finecodeCmdSplit = (devWorkspacePythonPath as string).split(' ');
+    const finecodeCmdSplit = devWorkspacePythonPath.split(' ');
     const logLevel = vscode.workspace.getConfiguration('finecode').get<string>('logLevel', 'INFO');
     const wmArgs = ['start-lsp', `--log-level=${logLevel}`, '--tcp'];
     if (process.env.FINECODE_DEBUG) {
@@ -270,9 +286,9 @@ const runWorkspaceManager = async (outputChannel: vscode.LogOutputChannel, actio
         const proc = spawn(
             finecodeCmdSplit[0],
             [...finecodeCmdSplit.slice(1), '-m', 'finecode.cli', ...wmArgs],
-            { cwd: wsDir, detached: false, shell: false }
+            { cwd: folderPath, detached: false, shell: false }
         );
-        lsProcess = proc;
+        lsProcessesByFolder.set(folderPath, proc);
 
         let buf = '';
         let resolved = false;
@@ -283,7 +299,7 @@ const runWorkspaceManager = async (outputChannel: vscode.LogOutputChannel, actio
             if (match && !resolved) {
                 resolved = true;
                 const port = parseInt(match[1], 10);
-                outputChannel.info(`Connecting to LSP server on port ${port}`);
+                outputChannel.info(`[${path.basename(folderPath)}] Connecting to LSP server on port ${port}`);
                 const socket = net.connect({ port, host: '127.0.0.1' });
                 socket.on('connect', () => resolve({ reader: socket, writer: socket }));
                 socket.on('error', reject);
@@ -299,7 +315,7 @@ const runWorkspaceManager = async (outputChannel: vscode.LogOutputChannel, actio
         });
     });
 
-    outputChannel.info(`Starting language server with command: ${finecodeCmdSplit[0]}`);
+    outputChannel.info(`[${path.basename(folderPath)}] Starting language server with command: ${finecodeCmdSplit[0]}`);
     outputChannel.info(`Args: ${JSON.stringify([...finecodeCmdSplit.slice(1), '-m', 'finecode.cli', ...wmArgs])}`);
 
     // Options to control the language client
@@ -310,26 +326,27 @@ const runWorkspaceManager = async (outputChannel: vscode.LogOutputChannel, actio
     };
 
     // Create the language client and start the client.
-    lsClient = new LanguageClient(
-        'finecodeServer',
-        'Finecode LSP Server',
+    const client = new LanguageClient(
+        `finecodeServer_${path.basename(folderPath)}`,
+        `Finecode LSP Server (${path.basename(folderPath)})`,
         serverOptions,
         clientOptions
     );
 
-    // Start the client. This will also launch the server
-    // waiting on start server is required, otherwise we will get empty response on first request
-    // like action list
-    outputChannel.info('Starting language client...');
+    lsClientsByFolder.set(folderPath, client);
+
+    // Waiting on start is required, otherwise we get empty responses on first requests like action list.
+    outputChannel.info(`[${path.basename(folderPath)}] Starting language client...`);
     try {
-        await lsClient.start();
-        outputChannel.info('Language server started successfully!');
+        await client.start();
+        outputChannel.info(`[${path.basename(folderPath)}] Language server started successfully!`);
     } catch (error) {
-        outputChannel.error(`Failed to start language server: ${error}`);
+        outputChannel.error(`[${path.basename(folderPath)}] Failed to start language server: ${error}`);
+        lsClientsByFolder.delete(folderPath);
         throw error;
     }
 
-    lsClient.onRequest('editor/documentMeta', () => {
+    client.onRequest('editor/documentMeta', () => {
         console.log('editor/documentMeta request');
         const activeEditor = vscode.window.activeTextEditor;
         if (!activeEditor) {
@@ -342,7 +359,7 @@ const runWorkspaceManager = async (outputChannel: vscode.LogOutputChannel, actio
         };
     });
 
-    // lsClient.onRequest('editor/documentText', () => {
+    // client.onRequest('editor/documentText', () => {
     //     console.log('editor/documentText request');
     //     const { document } = vscode.window.activeTextEditor || {};
     //     if (!document) {
@@ -353,49 +370,113 @@ const runWorkspaceManager = async (outputChannel: vscode.LogOutputChannel, actio
     //     return { text: document.getText() };
     // });
 
-    lsClient.onRequest('ide/startDebugging', async (data) => {
+    client.onRequest('ide/startDebugging', async (data) => {
         console.log('ide/startDebugging request', data);
 
         await vscode.debug.startDebugging(undefined, data);
     });
 
-    lsClient.onNotification('actionsNodes/changed', (data: ActionTreeNode) => {
+    client.onNotification('actionsNodes/changed', (data: ActionTreeNode) => {
         actionsProvider.updateItem(data);
     });
 };
 
+const ensureFolderWorkspaceManager = async (
+    folderPath: string,
+    outputChannel: vscode.LogOutputChannel,
+    actionsProvider: FineCodeActionsProvider,
+): Promise<void> => {
+    if (lsClientsByFolder.has(folderPath) || lsFoldersStarting.has(folderPath)) {
+        return;
+    }
+    lsFoldersStarting.add(folderPath);
+    try {
+        await startFolderWorkspaceManager(folderPath, outputChannel, actionsProvider);
+    } finally {
+        lsFoldersStarting.delete(folderPath);
+    }
+};
+
+const runWorkspaceManager = async (outputChannel: vscode.LogOutputChannel, actionsProvider: FineCodeActionsProvider) => {
+    if (!vscode.workspace.workspaceFolders) {
+        outputChannel.error("No workspace folders found. Please open a workspace folder and restart the extension.");
+        return;
+    }
+
+    outputChannel.info(`Found ${vscode.workspace.workspaceFolders.length} workspace folder(s)`);
+
+    const mode = getWorkspaceMode();
+
+    if (mode === 'single') {
+        // Single mode: start one WM for the first workspace folder immediately.
+        const firstFolder = vscode.workspace.workspaceFolders[0];
+        await startFolderWorkspaceManager(firstFolder.uri.fsPath, outputChannel, actionsProvider);
+        if (!lsClientsByFolder.has(firstFolder.uri.fsPath)) {
+            outputChannel.error(`No dev_workspace found in workspace folders. Expected path: ${DEV_WORKSPACE_PYTHON_DISPLAY_PATH}`);
+            outputChannel.error('Please create the virtual environment and restart the extension.');
+        }
+    } else {
+        // Per-folder mode: start WMs lazily as files are opened in each folder.
+        // The onDidChangeActiveTextEditor listener in activate() handles subsequent folders.
+        // Start the WM for the currently active editor's folder right now if there is one.
+        outputChannel.info('Per-folder mode: workspace managers start on demand when files are opened.');
+        const activeEditor = vscode.window.activeTextEditor;
+        if (activeEditor) {
+            const folder = vscode.workspace.getWorkspaceFolder(activeEditor.document.uri);
+            if (folder) {
+                await ensureFolderWorkspaceManager(folder.uri.fsPath, outputChannel, actionsProvider);
+            }
+        }
+    }
+};
+
 
 const disconnectFromWorkspaceManager = async () => {
-    if (lsClient) {
-        await lsClient.stop();
-        lsClient = undefined;
+    await Promise.all([...lsClientsByFolder.entries()].map(async ([folderPath, client]) => {
+        try {
+            await client.stop();
+        } catch (error) {
+            console.log(`Error stopping language client for ${folderPath}:`, error);
+        }
+    }));
+    lsClientsByFolder.clear();
+
+    for (const proc of lsProcessesByFolder.values()) {
+        proc.kill();
     }
-    lsProcess?.kill();
-    lsProcess = undefined;
+    lsProcessesByFolder.clear();
 };
 
 const stopWorkspaceManager = async () => {
-    if (lsClient) {
+    await Promise.all([...lsClientsByFolder.entries()].map(async ([folderPath, client]) => {
         try {
-            await lsClient.sendRequest('server/shutdown', {});
+            await client.sendRequest('server/shutdown', {});
         } catch (error) {
-            console.log('Error sending shutdown request to language server:', error);
+            console.log(`Error sending shutdown request for ${folderPath}:`, error);
         }
-        await lsClient.stop();
-        lsClient = undefined;
+        try {
+            await client.stop();
+        } catch (error) {
+            console.log(`Error stopping language client for ${folderPath}:`, error);
+        }
+    }));
+    lsClientsByFolder.clear();
+
+    for (const proc of lsProcessesByFolder.values()) {
+        proc.kill();
     }
-    lsProcess?.kill();
-    lsProcess = undefined;
+    lsProcessesByFolder.clear();
 };
 
 
 export function getLSClient(): Promise<LanguageClient> {
     return new Promise((resolve) => {
         const resolveClient = () => {
-            if (!lsClient) {
+            const client = getClientForActiveEditor();
+            if (!client) {
                 setTimeout(resolveClient, 100);
             } else {
-                resolve(lsClient);
+                resolve(client);
             }
         };
         resolveClient();

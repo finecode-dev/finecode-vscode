@@ -6,6 +6,21 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-04
+
+### Added
+
+- New `finecode.workspaceMode` setting to control how Workspace Manager instances are started:
+  - `per-folder` (default) — one independent WM instance per VS Code workspace folder, started lazily when the first file in that folder is opened. Recommended for git worktrees workflows.
+  - `single` — one WM instance shared across all workspace folders.
+- MCP server definitions are now provided per workspace folder in `per-folder` mode.
+
+## [0.5.0] - 2026-05-08
+
+### Changed
+
+- Activate extension not only for Python files, but for all languages. FineCode checks by itself whether support of the file language is configured or not (there is no way in VSCode to provide supported languages dynamically)
+
 ## [0.4.1] - 2026-04-25
 
 ### Added

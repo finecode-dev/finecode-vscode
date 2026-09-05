@@ -5,7 +5,7 @@
   "engines": {
     "vscode": "^1.109.0"
   },
-  "version": "0.5.1",
+  "version": "0.6.0",
   "preview": false,
   "serverInfo": {
     "name": "FineCode",
@@ -70,6 +70,20 @@
             "ERROR"
           ],
           "scope": "machine",
+          "type": "string"
+        },
+        "finecode.workspaceMode": {
+          "default": "per-folder",
+          "description": "Controls how FineCode starts Workspace Manager instances. 'per-folder' starts one independent instance per VS Code workspace folder (recommended for git worktrees). 'single' starts one instance shared across all workspace folders.",
+          "enum": [
+            "per-folder",
+            "single"
+          ],
+          "enumDescriptions": [
+            "One Workspace Manager instance per VS Code workspace folder. Recommended when using git worktrees.",
+            "One Workspace Manager instance shared across all workspace folders."
+          ],
+          "scope": "window",
           "type": "string"
         }
       }
